@@ -1,0 +1,59 @@
+heating_circuits:
+  obergeschoss:
+    name: "Heizkreis Obergeschoss"
+    flow_sensor: "28-011111111111"  # Ersetze mit echter Sensor-ID
+    return_sensor: "28-022222222222"  # Ersetze mit echter Sensor-ID
+    target_temp: 20.0
+    description: "Heizkreis 1 - Obergeschoss: Schlafzimmer, Kinderzimmer, Bad"
+    priority: 1
+    
+  erdgeschoss:
+    name: "Heizkreis Erdgeschoss"
+    flow_sensor: "28-033333333333"  # Ersetze mit echter Sensor-ID
+    return_sensor: "28-044444444444"  # Ersetze mit echter Sensor-ID
+    target_temp: 21.0
+    description: "Heizkreis 2 - Erdgeschoss: Wohnzimmer, Küche, Flur"
+    priority: 2
+    
+  keller:
+    name: "Heizkreis Keller"
+    flow_sensor: "28-055555555555"  # Ersetze mit echter Sensor-ID
+    return_sensor: "28-066666666666"  # Ersetze mit echter Sensor-ID
+    target_temp: 18.0
+    description: "Heizkreis 3 - Keller: Nebenräume, Lager, Werkstatt"
+    priority: 3
+    
+  waermepumpe:
+    name: "Wärmepumpe Haupterzeuger"
+    flow_sensor: "28-077777777777"  # Ersetze mit echter Sensor-ID
+    return_sensor: "28-088888888888"  # Ersetze mit echter Sensor-ID
+    target_temp: 35.0
+    description: "Wärmepumpe Vorlauf/Rücklauf - Hauptwärmeerzeuger"
+    priority: 4
+
+# Wärmepumpen-spezifische Einstellungen
+heat_pump:
+  efficiency_thresholds:
+    excellent: 4.0    # COP > 4.0
+    good: 3.0         # COP > 3.0
+    acceptable: 2.5   # COP > 2.5
+    poor: 2.0         # COP < 2.0
+  
+  temperature_limits:
+    flow_max: 55.0    # Maximale Vorlauftemperatur
+    flow_min: 25.0    # Minimale Vorlauftemperatur
+    return_max: 45.0  # Maximaler Rücklauf
+    
+# Alarm-Grenzwerte für Heizungskreise
+alert_thresholds:
+  temperature_max: 65.0        # Maximale Vorlauftemperatur
+  temperature_diff_min: 3.0    # Minimale Temperaturdifferenz für aktiven Betrieb
+  efficiency_min: 20.0         # Minimale Effizienz-Score
+  heat_pump_cop_min: 2.0       # Minimaler COP-Wert für Wärmepumpe
+  
+# Heizungsraum-Überwachung
+heating_room:
+  temperature_min: 5.0         # Frostschutz-Grenze
+  temperature_max: 35.0        # Überhitzungsschutz
+  humidity_max: 80.0           # Maximale Luftfeuchtigkeit
+  condensation_risk_threshold: 70.0  # Kondensationsrisiko-Schwelle

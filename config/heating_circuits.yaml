@@ -1,0 +1,41 @@
+heating_circuits:
+  obergeschoss:
+    name: "Heizkreis Obergeschoss"
+    flow_sensor: "28-0000000001"
+    return_sensor: "28-0000000002"
+    target_temp: 20.0
+    description: "Heizkreis 1 - Obergeschoss mit Schlafzimmern und Bad"
+    
+  erdgeschoss:
+    name: "Heizkreis Erdgeschoss"
+    flow_sensor: "28-0000000003"
+    return_sensor: "28-0000000004"
+    target_temp: 21.0
+    description: "Heizkreis 2 - Erdgeschoss mit Wohnzimmer und Küche"
+    
+  keller:
+    name: "Heizkreis Keller"
+    flow_sensor: "28-0000000005"
+    return_sensor: "28-0000000006"
+    target_temp: 18.0
+    description: "Heizkreis 3 - Kellerbereich und Nebenräume"
+    
+  waermepumpe:
+    name: "Wärmepumpe"
+    flow_sensor: "28-0000000007"
+    return_sensor: "28-0000000008"
+    target_temp: 35.0
+    description: "Wärmepumpe Vorlauf/Rücklauf - Hauptwärmeerzeuger"
+
+# Alarm-Grenzwerte für Heizungskreise
+alert_thresholds:
+  temperature_max: 80.0        # Maximale Vorlauftemperatur
+  temperature_diff_min: 3.0    # Minimale Temperaturdifferenz für aktiven Betrieb
+  efficiency_min: 20.0         # Minimale Effizienz-Score
+  
+# Heizungsraum-Überwachung
+heating_room:
+  temperature_min: 5.0         # Frostschutz-Grenze
+  temperature_max: 35.0        # Überhitzungsschutz
+  humidity_max: 80.0           # Maximale Luftfeuchtigkeit
+  condensation_risk_threshold: 70.0  # Kondensationsrisiko-Schwelle

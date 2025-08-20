@@ -1,0 +1,8 @@
+w1thermsensor==2.3.0
+adafruit-circuitpython-dht==4.0.9
+adafruit-blinka==8.22.2
+influxdb-client==1.43.0
+RPi.GPIO==0.7.1
+schedule==1.2.2
+python-dotenv==1.0.1
+pyyaml==6.0.1
