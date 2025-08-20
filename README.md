@@ -1,6 +1,6 @@
-# Heizungsüberwachung mit Raspberry Pi
+# Heizungsüberwachung mit Raspberry Pi 5
 
-Ein spezialisiertes Python-System zur Überwachung von Heizungsanlagen mit DS18B20 Temperatursensoren für Vor- und Rückläufe, DHT22 Umgebungssensor, InfluxDB-Datenbank und Grafana-Dashboards.
+Ein spezialisiertes Python-System zur Überwachung von Heizungsanlagen mit DS18B20 Temperatursensoren für Vor- und Rückläufe, DHT22 Umgebungssensor, InfluxDB-Datenbank und Grafana-Dashboards - optimiert für Raspberry Pi 5.
 
 ## 🏠 Projekt-Übersicht
 
@@ -15,13 +15,14 @@ Dieses System überwacht kontinuierlich:
 ## 🔧 Hardware-Anforderungen
 
 ### Komponenten
-- Raspberry Pi 3/4 (empfohlen)
+- **Raspberry Pi 5** (empfohlen, optimiert für) oder Pi 3/4
 - 8x DS18B20 Temperatursensoren (wasserdicht für Rohrmontage)
 - 1x DHT22 Temperatur-/Luftfeuchtigkeitssensor
 - 4.7kΩ Pull-up Widerstand (1-Wire Bus)
 - 10kΩ Pull-up Widerstand (DHT22, optional)
 - Klemmleisten oder Schraubterminals
 - Isoliertes Gehäuse (IP65 empfohlen)
+- **SD-Karte** (min. 32GB, Class 10) für Raspberry Pi 5
 
 ### Verdrahtung
 
@@ -228,7 +229,7 @@ sudo nano /etc/systemd/system/heizung-monitor.service
 Inhalt der Service-Datei:
 ```ini
 [Unit]
-Description=Heizungsüberwachung mit Raspberry Pi
+Description=Heizungsüberwachung mit Raspberry Pi 5
 After=network.target influxdb.service
 Wants=influxdb.service
 
@@ -278,6 +279,33 @@ curl -fsSL https://raw.githubusercontent.com/OliverRebock/HeizungsPI2/main/quick
 # System neu starten
 sudo reboot
 ```
+
+## 🚀 Raspberry Pi 5 Optimierungen
+
+### Performance-Vorteile
+- **4x Cortex-A76 CPU** mit 2.4 GHz für schnellere Datenverarbeitung
+- **Erweiterte GPIO-Performance** für stabilere Sensor-Kommunikation
+- **Verbesserte Docker-Performance** für InfluxDB und Grafana Container
+- **Optimierte 1-Wire Unterstützung** mit reduzierten Latenzen
+
+### Pi 5-spezifische Konfiguration
+```bash
+# GPU-Memory für headless Betrieb optimieren
+echo "gpu_mem=16" | sudo tee -a /boot/firmware/config.txt
+
+# USB-Power für stabile Sensor-Versorgung
+echo "max_usb_current=1" | sudo tee -a /boot/firmware/config.txt
+
+# Übertaktung für bessere Performance (optional)
+echo "arm_freq=2600" | sudo tee -a /boot/firmware/config.txt
+echo "over_voltage=2" | sudo tee -a /boot/firmware/config.txt
+```
+
+### Monitoring-Optimierungen
+- **Parallel Sensor-Reading**: Gleichzeitiges Auslesen aller DS18B20 Sensoren
+- **Optimierte Polling-Intervalle**: 30 Sekunden für beste Balance zwischen Aktualität und Performance
+- **Intelligentes Caching**: Reduzierte InfluxDB-Writes durch Batch-Processing
+- **Docker Memory Limits**: Optimierte Container-Ressourcen für Pi 5
 
 ## 🚀 System starten
 
