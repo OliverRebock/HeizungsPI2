@@ -101,12 +101,51 @@ cd HeizungsPI2
 ✅ **Git und Python werden installiert**  
 ✅ **Projekt wird von GitHub geklont**  
 ✅ **1-Wire Interface wird aktiviert** (GPIO 4)  
-✅ **InfluxDB 2.x wird installiert und konfiguriert**  
-✅ **Grafana wird installiert und gestartet**  
+✅ **Docker und Docker Compose werden installiert**  
+✅ **InfluxDB 2.x wird als Docker Container gestartet**  
+✅ **Grafana wird als Docker Container gestartet**  
 ✅ **Python Virtual Environment wird erstellt**  
 ✅ **Alle Dependencies werden installiert** (requirements.txt)  
 ✅ **Systemd Service wird eingerichtet**  
 ✅ **Berechtigungen werden korrekt gesetzt**  
+✅ **Grafana-Datasource wird automatisch konfiguriert**  
+
+### 🐳 Docker Container Management
+
+Nach der Installation laufen InfluxDB und Grafana als Docker Container:
+
+```bash
+# Container-Status prüfen
+docker-compose ps
+
+# Container-Logs anzeigen
+docker-compose logs influxdb
+docker-compose logs grafana
+
+# Container neu starten
+docker-compose restart
+
+# Container stoppen
+docker-compose down
+
+# Container mit neuen Images aktualisieren
+docker-compose pull
+docker-compose up -d
+```
+
+### 📊 Standard-Zugangsdaten
+
+**InfluxDB:** http://PI_IP_ADRESSE:8086
+- **Benutzername:** admin
+- **Passwort:** heizung123!
+- **Organisation:** heizung-monitoring
+- **Bucket:** heizung-daten
+- **Token:** heizung-monitoring-token-2024
+
+**Grafana:** http://PI_IP_ADRESSE:3000
+- **Benutzername:** admin
+- **Passwort:** heizung123!
+- **Datasource:** Bereits konfiguriert ✅  
 
 ### Manuelle Installation (Schritt für Schritt)
 
@@ -141,69 +180,37 @@ ls /sys/bus/w1/devices/28-*
 cat /sys/bus/w1/devices/28-*/w1_slave
 ```
 
-#### 4. InfluxDB 2.x installieren
+#### 4. Docker und Container installieren
 ```bash
-# Alte Repository-Einträge entfernen (falls vorhanden)
-sudo rm -f /etc/apt/sources.list.d/influxdb.list
-sudo rm -f /usr/share/keyrings/influxdb-archive-keyring.gpg
+# Docker installieren
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker pi
 
-# Neuen GPG-Schlüssel korrekt importieren
-wget -q https://repos.influxdata.com/influxdata-archive_compat.key
-echo '393e8779c89ac8d958f81f942f9ad7fb82a25e133faddaf92e15b16e6ac9ce4c' influxdata-archive_compat.key | sha256sum -c && cat influxdata-archive_compat.key | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg > /dev/null
+# Docker Compose installieren
+sudo apt install -y docker-compose-plugin
 
-# Repository hinzufügen
-echo 'deb [signed-by=/etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg] https://repos.influxdata.com/debian stable main' | sudo tee /etc/apt/sources.list.d/influxdb.list
+# Docker Service starten
+sudo systemctl enable docker
+sudo systemctl start docker
 
-# InfluxDB installieren
-sudo apt update && sudo apt install -y influxdb2
-
-# Service starten
-sudo systemctl enable influxdb
-sudo systemctl start influxdb
-
-# Web-Setup: http://PI_IP_ADRESSE:8086
-```
-
-#### 5. Grafana installieren
-```bash
-# Repository hinzufügen
-curl -s https://packages.grafana.com/gpg.key | gpg --dearmor | sudo tee /usr/share/keyrings/grafana.gpg >/dev/null
-echo "deb [signed-by=/usr/share/keyrings/grafana.gpg] https://packages.grafana.com/oss/deb stable main" | sudo tee /etc/apt/sources.list.d/grafana.list
-
-# Grafana installieren
-sudo apt update && sudo apt install -y grafana
-
-# Service starten
-sudo systemctl enable grafana-server
-sudo systemctl start grafana-server
-
-# Web-Interface: http://PI_IP_ADRESSE:3000
-# Standard-Login: admin/admin
-```
-
-#### 6. Python-Projekt einrichten
-```bash
-# Projekt-Verzeichnis
+# InfluxDB und Grafana Container starten
 cd /home/pi/heizung-monitor
+docker-compose up -d
 
-# Virtuelle Umgebung erstellen
-python3 -m venv venv
-source venv/bin/activate
-
-# Python-Abhängigkeiten installieren
-pip install --upgrade pip
-pip install -r requirements.txt
+# Container-Status prüfen
+docker-compose ps
 ```
 
-#### 7. Konfiguration
+#### 5. Konfiguration
 ```bash
 # Umgebungsvariablen konfigurieren
 cp .env.example .env
 nano .env
 
-# InfluxDB-Verbindungsdaten eintragen:
+# Standard-Konfiguration ist bereits gesetzt:
 # INFLUXDB_URL=http://localhost:8086
-# INFLUXDB_TOKEN=dein-token-hier
+# INFLUXDB_TOKEN=heizung-monitoring-token-2024
 # INFLUXDB_ORG=heizung-monitoring
 # INFLUXDB_BUCKET=heizung-daten
 
@@ -212,7 +219,7 @@ ls /sys/bus/w1/devices/28-*
 nano config/heating_circuits.yaml
 ```
 
-#### 8. Systemd Service einrichten
+#### 6. Systemd Service einrichten
 ```bash
 # Service-Datei erstellen
 sudo nano /etc/systemd/system/heizung-monitor.service
@@ -424,23 +431,47 @@ python3 -c "from src.sensors.dht22_sensor import DHT22Sensor; s=DHT22Sensor(); p
 
 ### InfluxDB Verbindungsprobleme
 ```bash
-# Service-Status
-sudo systemctl status influxdb
+# Container-Status prüfen
+docker-compose ps
+docker-compose logs influxdb
 
-# Logs prüfen
-sudo journalctl -u influxdb -f
+# Container neu starten
+docker-compose restart influxdb
 
 # Verbindung testen
 curl -v http://localhost:8086/health
+
+# Container direkt zugreifen
+docker exec -it heizung-influxdb /bin/bash
 ```
 
 ### Grafana Dashboard fehlen
 ```bash
-# Dashboard-Import
-python3 scripts/import_dashboards.py
+# Container-Status prüfen
+docker-compose logs grafana
 
-# Grafana neu starten
-sudo systemctl restart grafana-server
+# Container neu starten
+docker-compose restart grafana
+
+# Grafana-Konfiguration neu laden
+docker-compose restart grafana
+```
+
+### Docker Container Probleme
+```bash
+# Alle Container neu starten
+docker-compose down
+docker-compose up -d
+
+# Container-Images aktualisieren
+docker-compose pull
+docker-compose up -d
+
+# Logs aller Container anzeigen
+docker-compose logs -f
+
+# Volumes prüfen
+docker volume ls
 ```
 
 ## 📄 Lizenz

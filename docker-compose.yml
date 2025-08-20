@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: heizung-influxdb
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=admin
+      - DOCKER_INFLUXDB_INIT_PASSWORD=heizung123!
+      - DOCKER_INFLUXDB_INIT_ORG=heizung-monitoring
+      - DOCKER_INFLUXDB_INIT_BUCKET=heizung-daten
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=heizung-monitoring-token-2024
+    networks:
+      - heizung-network
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: heizung-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - grafana-config:/etc/grafana
+      - ./config/grafana:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=heizung123!
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+    networks:
+      - heizung-network
+    depends_on:
+      - influxdb
+
+volumes:
+  influxdb-data:
+    driver: local
+  influxdb-config:
+    driver: local
+  grafana-data:
+    driver: local
+  grafana-config:
+    driver: local
+
+networks:
+  heizung-network:
+    driver: bridge

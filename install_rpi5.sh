@@ -86,47 +86,54 @@ else
     log "1-Wire Module bereits in /etc/modules vorhanden"
 fi
 
-# 4. InfluxDB 2.x installieren
-log "Schritt 4: InfluxDB 2.x installieren..."
+# 4. Docker und Docker Compose installieren
+log "Schritt 4: Docker und Docker Compose installieren..."
 
-# Alte Repository-Einträge entfernen (falls vorhanden)
-sudo rm -f /etc/apt/sources.list.d/influxdb.list
-sudo rm -f /usr/share/keyrings/influxdb-archive-keyring.gpg
+# Docker installieren
+if ! command -v docker &> /dev/null; then
+    log "Installiere Docker..."
+    curl -fsSL https://get.docker.com -o get-docker.sh
+    sh get-docker.sh
+    usermod -aG docker pi
+    log "Docker installiert"
+else
+    log "Docker bereits installiert"
+fi
 
-# Neuen GPG-Schlüssel korrekt importieren
-wget -q https://repos.influxdata.com/influxdata-archive_compat.key
-echo '393e8779c89ac8d958f81f942f9ad7fb82a25e133faddaf92e15b16e6ac9ce4c' influxdata-archive_compat.key | sha256sum -c && cat influxdata-archive_compat.key | gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg > /dev/null
+# Docker Compose installieren
+if ! command -v docker-compose &> /dev/null; then
+    log "Installiere Docker Compose..."
+    apt install -y docker-compose-plugin
+    log "Docker Compose installiert"
+else
+    log "Docker Compose bereits installiert"
+fi
 
-# Repository hinzufügen
-echo 'deb [signed-by=/etc/apt/trusted.gpg.d/influxdata-archive_compat.gpg] https://repos.influxdata.com/debian stable main' | sudo tee /etc/apt/sources.list.d/influxdb.list
+# Docker Service starten
+systemctl enable docker
+systemctl start docker
 
-sudo apt update
-sudo apt install -y influxdb2
+# 5. InfluxDB und Grafana als Docker Container starten
+log "Schritt 5: InfluxDB und Grafana Container starten..."
 
-# InfluxDB Service aktivieren und starten
-sudo systemctl enable influxdb
-sudo systemctl start influxdb
+cd "$PROJECT_DIR"
 
-log "InfluxDB installiert - Setup über http://$(hostname -I | awk '{print $1}'):8086"
+# Docker Compose starten
+docker-compose up -d
 
-# 5. Grafana installieren
-log "Schritt 5: Grafana installieren..."
+# Warten bis Container gestartet sind
+log "Warte auf Container-Start..."
+sleep 30
 
-# Grafana Repository hinzufügen
-curl -s https://packages.grafana.com/gpg.key | gpg --dearmor | sudo tee /usr/share/keyrings/grafana.gpg >/dev/null
-echo "deb [signed-by=/usr/share/keyrings/grafana.gpg] https://packages.grafana.com/oss/deb stable main" | sudo tee /etc/apt/sources.list.d/grafana.list
-
-sudo apt update
-sudo apt install -y grafana
-
-# Grafana Service aktivieren und starten
-sudo systemctl enable grafana-server
-sudo systemctl start grafana-server
-
-log "Grafana installiert - Web-Interface: http://$(hostname -I | awk '{print $1}'):3000"
-
-# 6. Projekt-Verzeichnis erstellen
-log "Schritt 6: Projekt-Verzeichnis vorbereiten..."
+# Container-Status prüfen
+if docker-compose ps | grep -q "Up"; then
+    log "✅ InfluxDB und Grafana Container erfolgreich gestartet"
+    log "📊 InfluxDB: http://$(hostname -I | awk '{print $1}'):8086"
+    log "📈 Grafana: http://$(hostname -I | awk '{print $1}'):3000"
+    log "🔑 Standard-Login: admin/heizung123!"
+else
+    error "❌ Container-Start fehlgeschlagen"
+fi
 
 # 6. Projekt bereits geklont - Verzeichnis prüfen
 log "Schritt 6: Projekt-Verzeichnis prüfen..."
