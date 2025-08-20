@@ -172,9 +172,43 @@ else
         RPi.GPIO==0.7.1 \
         schedule==1.2.2 \
         python-dotenv==1.0.1 \
-        pyyaml==6.0.1
+        pyyaml==6.0.1 \
+        flask==3.0.0 \
+        requests==2.31.0
     log "Grundlegende Python-Pakete installiert"
 fi
+
+# 8a. Web Dashboard Service konfigurieren
+log "Schritt 8a: Web Dashboard Service einrichten..."
+
+sudo tee /etc/systemd/system/heizung-dashboard.service > /dev/null <<EOF
+[Unit]
+Description=Heizungsüberwachung Web Dashboard
+After=network.target heizung-monitor.service
+Wants=heizung-monitor.service
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=$PROJECT_DIR
+Environment=PATH=$PROJECT_DIR/venv/bin
+Environment=FLASK_APP=web_dashboard.py
+Environment=FLASK_ENV=production
+ExecStart=$PROJECT_DIR/venv/bin/python web_dashboard.py
+Restart=always
+RestartSec=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=heizung-dashboard
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+log "Web Dashboard Service erstellt"
 
 # 9. Systemd Service erstellen
 log "Schritt 9: Systemd Service konfigurieren..."
@@ -218,6 +252,36 @@ sudo chmod 755 /var/log/heizung-monitor
 log "Schritt 11: GPIO-Berechtigungen konfigurieren..."
 sudo usermod -a -G gpio pi
 
+# 11a. Backup System einrichten
+log "Schritt 11a: Backup System konfigurieren..."
+
+# Backup-Verzeichnis erstellen
+sudo mkdir -p /home/pi/backups
+sudo chown pi:pi /home/pi/backups
+sudo chmod 755 /home/pi/backups
+
+# Backup-Script ausführbar machen
+if [ -f "scripts/backup.sh" ]; then
+    chmod +x scripts/backup.sh
+    log "Backup-Script berechtigt"
+    
+    # Cron-Job für automatische Backups einrichten (täglich um 2:00 Uhr)
+    (crontab -l 2>/dev/null; echo "0 2 * * * cd $PROJECT_DIR && ./scripts/backup.sh") | crontab -
+    log "Automatische Backups konfiguriert (täglich 2:00 Uhr)"
+else
+    warn "Backup-Script nicht gefunden: scripts/backup.sh"
+fi
+
+# 11b. Alert System Setup
+log "Schritt 11b: Alert System konfigurieren..."
+
+# Alert-Logs Verzeichnis
+sudo mkdir -p /var/log/heizung-alerts
+sudo chown pi:pi /var/log/heizung-alerts
+sudo chmod 755 /var/log/heizung-alerts
+
+log "Alert System vorbereitet"
+
 # 12. Konfigurationsdateien prüfen
 log "Schritt 12: Konfiguration prüfen..."
 
@@ -234,6 +298,14 @@ fi
 if [ ! -f "config/heating_circuits.yaml" ]; then
     warn "Heizkreis-Konfiguration nicht gefunden!"
     warn "Prüfe: config/heating_circuits.yaml"
+fi
+
+# Service-Manager Script ausführbar machen
+if [ -f "service_manager.sh" ]; then
+    chmod +x service_manager.sh
+    log "Service-Manager Script berechtigt"
+else
+    warn "Service-Manager Script nicht gefunden"
 fi
 
 # 13. 1-Wire Sensoren testen (nach Neustart)
@@ -270,13 +342,29 @@ echo ""
 echo "6. Service starten:"
 echo "   sudo systemctl enable heizung-monitor"
 echo "   sudo systemctl start heizung-monitor"
+echo "   sudo systemctl enable heizung-dashboard"
+echo "   sudo systemctl start heizung-dashboard"
 echo ""
-echo "7. Grafana öffnen:"
+echo "   Oder verwende den Service-Manager:"
+echo "   ./service_manager.sh enable"
+echo "   ./service_manager.sh start"
+echo ""
+echo "7. Web Dashboard:"
+echo "   http://$(hostname -I | awk '{print $1}'):5000"
+echo ""
+echo "8. Grafana öffnen:"
 echo "   http://$(hostname -I | awk '{print $1}'):3000"
 echo "   Login: admin/admin"
 echo ""
-echo "8. Logs überwachen:"
+echo "9. Service-Management:"
+echo "   ./service_manager.sh status    # Status anzeigen"
+echo "   ./service_manager.sh logs      # Live-Logs"
+echo "   ./service_manager.sh test      # System testen"
+echo "   ./service_manager.sh backup    # Backup ausführen"
+echo ""
+echo "10. Logs überwachen:"
 echo "   sudo journalctl -u heizung-monitor -f"
+echo "   sudo journalctl -u heizung-dashboard -f"
 echo ""
 
 echo -e "${GREEN}🎉 Installation erfolgreich!${NC}"
