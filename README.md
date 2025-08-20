@@ -54,27 +54,59 @@ Sensor 7-8: Wärmepumpe Vor-/Rücklauf
 
 ## 🖥️ Installation auf Raspberry Pi 5
 
-### Automatische Installation
+### 🚀 Einfachste Installation (Ein-Befehl)
 
-1. **Projekt auf Raspberry Pi übertragen:**
-   ```bash
-   # Von deinem Windows-PC aus:
-   scp -r HeizungsPI2/ pi@DEINE_PI_IP:/home/pi/heizung-monitor
-   
-   # Oder mit USB-Stick/SD-Karte übertragen
-   ```
+**Führe diesen einen Befehl direkt auf deinem Raspberry Pi aus:**
 
-2. **Auf dem Raspberry Pi ausführen:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/OliverRebock/HeizungsPI2/main/quick_install.sh | sudo bash
+```
+
+Das war's! Der Rest passiert automatisch. Nach der Installation:
+```bash
+sudo reboot
+```
+
+### 📦 Standard GitHub-Installation
+
+1. **Projekt von GitHub klonen und installieren:**
    ```bash
-   cd /home/pi/heizung-monitor
+   # Direkt auf dem Raspberry Pi ausführen:
+   cd /home/pi
+   git clone https://github.com/OliverRebock/HeizungsPI2.git heizung-monitor
+   cd heizung-monitor
    chmod +x install_rpi5.sh
    sudo bash install_rpi5.sh
    ```
 
-3. **System neu starten:**
+2. **System neu starten:**
    ```bash
    sudo reboot
    ```
+
+### 🖥️ Remote-Installation von Windows
+
+Wenn du das System von deinem Windows-PC aus installieren möchtest:
+
+```bash
+# Im Git Bash oder PowerShell:
+git clone https://github.com/OliverRebock/HeizungsPI2.git
+cd HeizungsPI2
+./deploy_to_pi.sh
+```
+
+### ⚡ Was passiert bei der automatischen Installation?
+
+✅ **System wird aktualisiert** (apt update & upgrade)  
+✅ **Git und Python werden installiert**  
+✅ **Projekt wird von GitHub geklont**  
+✅ **1-Wire Interface wird aktiviert** (GPIO 4)  
+✅ **InfluxDB 2.x wird installiert und konfiguriert**  
+✅ **Grafana wird installiert und gestartet**  
+✅ **Python Virtual Environment wird erstellt**  
+✅ **Alle Dependencies werden installiert** (requirements.txt)  
+✅ **Systemd Service wird eingerichtet**  
+✅ **Berechtigungen werden korrekt gesetzt**  
 
 ### Manuelle Installation (Schritt für Schritt)
 
@@ -217,7 +249,30 @@ sudo systemctl daemon-reload
 sudo systemctl enable heizung-monitor
 ```
 
-### 🚀 System starten
+## 🔄 System aktualisieren
+
+### Update von GitHub
+
+```bash
+cd /home/pi/heizung-monitor
+git pull origin main
+sudo systemctl restart heizung-monitor
+```
+
+### Vollständige Neuinstallation
+
+```bash
+# Altes System stoppen
+sudo systemctl stop heizung-monitor
+
+# Neu installieren
+curl -fsSL https://raw.githubusercontent.com/OliverRebock/HeizungsPI2/main/quick_install.sh | sudo bash
+
+# System neu starten
+sudo reboot
+```
+
+## 🚀 System starten
 
 #### Sensoren testen
 ```bash

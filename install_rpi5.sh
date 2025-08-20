@@ -1,6 +1,6 @@
 #!/bin/bash
 # Installations-Skript für Heizungsüberwachung auf Raspberry Pi 5
-# Führe dieses Skript mit: bash install_rpi5.sh
+# Kann direkt von GitHub ausgeführt werden: curl -fsSL https://raw.githubusercontent.com/OliverRebock/HeizungsPI2/main/install_rpi5.sh | sudo bash
 
 set -e  # Beende bei Fehlern
 
@@ -13,6 +13,10 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# GitHub Repository
+GITHUB_REPO="https://github.com/OliverRebock/HeizungsPI2.git"
+PROJECT_DIR="/home/pi/heizung-monitor"
 
 # Logging-Funktion
 log() {
@@ -27,13 +31,28 @@ error() {
     echo -e "${RED}[FEHLER] $1${NC}"
 }
 
+# 0. Projekt von GitHub klonen (falls noch nicht vorhanden)
+if [ ! -d "$PROJECT_DIR" ]; then
+    log "Schritt 0: Projekt von GitHub klonen..."
+    cd /home/pi
+    git clone "$GITHUB_REPO" heizung-monitor
+    chown -R pi:pi "$PROJECT_DIR"
+    log "Projekt erfolgreich von GitHub geklont"
+else
+    log "Projekt-Verzeichnis existiert bereits - aktualisiere..."
+    cd "$PROJECT_DIR"
+    git pull origin main || warn "Git pull fehlgeschlagen - verwende lokale Version"
+fi
+
+cd "$PROJECT_DIR"
+
 # 1. System aktualisieren
 log "Schritt 1: System aktualisieren..."
-sudo apt update && sudo apt upgrade -y
+apt update && apt upgrade -y
 
 # 2. Benötigte Pakete installieren
 log "Schritt 2: Grundlegende Pakete installieren..."
-sudo apt install -y \
+apt install -y \
     python3 \
     python3-pip \
     python3-venv \
@@ -52,7 +71,7 @@ log "Schritt 3: 1-Wire Interface konfigurieren..."
 
 # 1-Wire in /boot/config.txt aktivieren
 if ! grep -q "dtoverlay=w1-gpio" /boot/firmware/config.txt; then
-    echo "dtoverlay=w1-gpio,gpiopin=4" | sudo tee -a /boot/firmware/config.txt
+    echo "dtoverlay=w1-gpio,gpiopin=4" | tee -a /boot/firmware/config.txt
     log "1-Wire Interface in config.txt aktiviert (GPIO 4)"
 else
     log "1-Wire Interface bereits in config.txt konfiguriert"
@@ -60,8 +79,8 @@ fi
 
 # Module zu /etc/modules hinzufügen
 if ! grep -q "w1-gpio" /etc/modules; then
-    echo "w1-gpio" | sudo tee -a /etc/modules
-    echo "w1-therm" | sudo tee -a /etc/modules
+    echo "w1-gpio" | tee -a /etc/modules
+    echo "w1-therm" | tee -a /etc/modules
     log "1-Wire Module zu /etc/modules hinzugefügt"
 else
     log "1-Wire Module bereits in /etc/modules vorhanden"
@@ -109,10 +128,12 @@ log "Grafana installiert - Web-Interface: http://$(hostname -I | awk '{print $1}
 # 6. Projekt-Verzeichnis erstellen
 log "Schritt 6: Projekt-Verzeichnis vorbereiten..."
 
-PROJECT_DIR="/home/pi/heizung-monitor"
+# 6. Projekt bereits geklont - Verzeichnis prüfen
+log "Schritt 6: Projekt-Verzeichnis prüfen..."
+
 if [ ! -d "$PROJECT_DIR" ]; then
-    mkdir -p "$PROJECT_DIR"
-    log "Projekt-Verzeichnis erstellt: $PROJECT_DIR"
+    error "Projekt-Verzeichnis nicht gefunden. Klone manuell von GitHub."
+    exit 1
 fi
 
 cd "$PROJECT_DIR"
@@ -127,14 +148,14 @@ fi
 
 source venv/bin/activate
 
-# 8. Python-Abhängigkeiten installieren (falls requirements.txt vorhanden)
+# 8. Python-Abhängigkeiten installieren (requirements.txt sollte existieren)
 if [ -f "requirements.txt" ]; then
-    log "Schritt 8: Python-Abhängigkeiten installieren..."
+    log "Schritt 8: Python-Abhängigkeiten aus requirements.txt installieren..."
     pip install --upgrade pip
     pip install -r requirements.txt
-    log "Python-Pakete installiert"
+    log "Python-Pakete aus requirements.txt installiert"
 else
-    log "Schritt 8: Grundlegende Python-Pakete installieren..."
+    log "Schritt 8: Grundlegende Python-Pakete installieren (Fallback)..."
     pip install --upgrade pip
     pip install \
         w1thermsensor==2.3.0 \

@@ -1,33 +1,83 @@
-#!/b# Konfiguration
-PI_HOST="pi@192.168.178.78"
-PI_PATH="/home/pi/heizung-monitor"
-LOCAL_PATH="."ash
-# Deployment-Skript für Windows zu Raspberry Pi 5
-# Führe dieses Skript auf Windows (Git Bash/WSL) aus
+#!/bin/bash
+# GitHub-basiertes Deployment für Heizungsüberwachung auf Raspberry Pi
+# Das Projekt wird direkt von GitHub geklont
 
 # Konfiguration
-PI_HOST="pi@192.168.1.100"  # ⚠️ ÄNDERE DIESE IP-ADRESSE ZU DEINER RASPBERRY PI IP!
-PI_PATH="/home/pi/heizung-monitor"
-LOCAL_PATH="."
+PI_IP="192.168.178.78"
+PI_USER="pi"
+GITHUB_REPO="https://github.com/OliverRebock/HeizungsPI2.git"
 
-echo "🚀 Deploying Heizungsüberwachung to Raspberry Pi 5"
-echo "================================================="
-
-# Farben für Output
+# Farben
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-RED='\033[0;31m'
+BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Prüfe ob SSH-Verbindung funktioniert
-echo -e "${YELLOW}Teste SSH-Verbindung zu $PI_HOST...${NC}"
-if ! ssh -o ConnectTimeout=5 $PI_HOST "echo 'SSH-Verbindung erfolgreich'"; then
-    echo -e "${RED}❌ SSH-Verbindung fehlgeschlagen!${NC}"
-    echo ""
-    echo "Mögliche Lösungen:"
-    echo "1. IP-Adresse in diesem Skript anpassen (Zeile 5)"
-    echo "2. SSH auf dem Pi aktivieren: sudo systemctl enable ssh"
-    echo "3. SSH-Keys einrichten für passwortlose Anmeldung"
+log() {
+    echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] $1${NC}"
+}
+
+warn() {
+    echo -e "${YELLOW}[WARNUNG] $1${NC}"
+}
+
+error() {
+    echo -e "${RED}[FEHLER] $1${NC}"
+}
+
+echo "🚀 Heizungsüberwachung - GitHub-basiertes Deployment"
+echo "=================================================="
+
+log "Ziel-Raspberry Pi: $PI_IP"
+log "GitHub Repository: $GITHUB_REPO"
+
+# Methode 1: SSH-Befehl für direkte GitHub-Installation
+log "Methode 1: SSH + GitHub Clone"
+echo "Führe folgenden Befehl auf dem Pi aus:"
+echo ""
+echo -e "${BLUE}ssh $PI_USER@$PI_IP${NC}"
+echo -e "${BLUE}curl -fsSL https://raw.githubusercontent.com/OliverRebock/HeizungsPI2/main/quick_install.sh | sudo bash${NC}"
+echo ""
+
+# Methode 2: SSH-Direktverbindung (falls SSH verfügbar)
+if command -v ssh &> /dev/null; then
+    read -p "Soll die Installation automatisch über SSH gestartet werden? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        log "Starte SSH-Verbindung und Installation..."
+        
+        ssh "$PI_USER@$PI_IP" << 'ENDSSH'
+            echo "🔧 Starte GitHub-basierte Installation auf Raspberry Pi..."
+            curl -fsSL https://raw.githubusercontent.com/OliverRebock/HeizungsPI2/main/quick_install.sh | sudo bash
+ENDSSH
+        
+        if [ $? -eq 0 ]; then
+            log "✅ Installation erfolgreich abgeschlossen!"
+            echo ""
+            echo -e "${GREEN}System wurde installiert. Nächste Schritte:${NC}"
+            echo "1. Pi neu starten: ssh $PI_USER@$PI_IP 'sudo reboot'"
+            echo "2. InfluxDB konfigurieren: http://$PI_IP:8086"
+            echo "3. Grafana öffnen: http://$PI_IP:3000"
+        else
+            error "Installation fehlgeschlagen"
+        fi
+    fi
+else
+    warn "SSH nicht verfügbar. Verwende manuelle Installation."
+fi
+
+# Methode 3: Manuelle Anweisungen
+echo ""
+echo -e "${BLUE}=== MANUELLE INSTALLATION ===${NC}"
+echo "Falls SSH nicht funktioniert, führe direkt auf dem Pi aus:"
+echo ""
+echo "cd /home/pi"
+echo "git clone $GITHUB_REPO heizung-monitor"
+echo "cd heizung-monitor"
+echo "chmod +x install_rpi5.sh"
+echo "sudo bash install_rpi5.sh"
+echo "sudo reboot"
     echo ""
     exit 1
 fi
