@@ -66,12 +66,16 @@ if [ -f "config/heating_circuits.yaml" ] && [ ! -f "config/heating_circuits.yaml
     cp config/heating_circuits.yaml config/heating_circuits.yaml.backup
 fi
 
+# Git-Berechtigungen und Sicherheit korrigieren
+chown -R pi:pi .git
+sudo -u pi git config --global --add safe.directory /home/pi/heizung-monitor
+
 # Git-Repository zurücksetzen und aktualisieren
 log "Aktualisiere Repository..."
-git fetch origin
-git reset --hard HEAD  # Verwirft lokale Änderungen
-git clean -fd           # Entfernt unverfolgte Dateien
-git pull origin main
+sudo -u pi git fetch origin
+sudo -u pi git reset --hard HEAD  # Verwirft lokale Änderungen
+sudo -u pi git clean -fd           # Entfernt unverfolgte Dateien
+sudo -u pi git pull origin main
 
 # 4. Gesicherte Konfigurationen wiederherstellen
 if [ -f ".env.backup" ]; then

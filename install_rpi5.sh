@@ -51,13 +51,18 @@ error() {
 if [ ! -d "$PROJECT_DIR" ]; then
     log "Schritt 0: Projekt von GitHub klonen..."
     cd /home/pi
-    git clone "$GITHUB_REPO" heizung-monitor
+    sudo -u pi git clone "$GITHUB_REPO" heizung-monitor
     chown -R pi:pi "$PROJECT_DIR"
+    # Git-Sicherheitswarnung beheben
+    sudo -u pi git config --global --add safe.directory "$PROJECT_DIR"
     log "Projekt erfolgreich von GitHub geklont"
 else
     log "Projekt-Verzeichnis existiert bereits - aktualisiere..."
     cd "$PROJECT_DIR"
-    git pull origin main || warn "Git pull fehlgeschlagen - verwende lokale Version"
+    # Git-Sicherheitswarnung beheben
+    sudo -u pi git config --global --add safe.directory "$PROJECT_DIR"
+    chown -R pi:pi .git
+    sudo -u pi git pull origin main || warn "Git pull fehlgeschlagen - verwende lokale Version"
 fi
 
 cd "$PROJECT_DIR"

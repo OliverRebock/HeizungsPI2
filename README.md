@@ -552,6 +552,18 @@ sudo chmod +x *.sh
 sudo ./install_rpi5.sh
 ```
 
+**Git Ownership Fehler:**
+```bash
+# Fehler: "fatal: detected dubious ownership in repository"
+# Lösung:
+cd /home/pi/heizung-monitor
+sudo ./git_ownership_fix.sh
+
+# Oder manuell:
+sudo chown -R pi:pi /home/pi/heizung-monitor
+sudo -u pi git config --global --add safe.directory /home/pi/heizung-monitor
+```
+
 **System-Update (wenn bereits installiert):**
 ```bash
 # Für Updates ohne Neuinstallation:

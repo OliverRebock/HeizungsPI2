@@ -62,6 +62,9 @@ cd "$PROJECT_DIR"
 # Berechtigungen setzen
 chown -R pi:pi "$PROJECT_DIR"
 
+# Git-Sicherheitswarnung beheben
+sudo -u pi git config --global --add safe.directory "$PROJECT_DIR"
+
 # 3. Konfiguration wiederherstellen
 if [ -d "$BACKUP_DIR" ]; then
     log "Stelle Konfiguration wieder her..."

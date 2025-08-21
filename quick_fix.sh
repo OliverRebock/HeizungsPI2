@@ -40,6 +40,9 @@ echo "🔄 Löse Git-Konflikt..."
 chown -R pi:pi /home/pi/heizung-monitor/.git
 chmod -R 755 /home/pi/heizung-monitor/.git
 
+# Git-Sicherheitswarnung beheben
+sudo -u pi git config --global --add safe.directory /home/pi/heizung-monitor
+
 # Als pi-User git-Operationen ausführen
 sudo -u pi git stash  # Sichere lokale Änderungen
 sudo -u pi git fetch origin
