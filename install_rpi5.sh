@@ -1,5 +1,4 @@
 #!/bin/bash
-#!/bin/bash
 
 # Heizungsüberwachung Installation für Raspberry Pi 5
 # Automatische Installation aller Komponenten
