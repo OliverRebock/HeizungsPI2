@@ -535,9 +535,20 @@ sudo apt install docker-compose-plugin
 **Git-Merge-Konflikt bei Installation:**
 ```bash
 # Fehler: "Your local changes would be overwritten by merge"
-# Lösung:
+# Lösung 1 - Quick-Fix (empfohlen):
 cd /home/pi/heizung-monitor
-./quick_fix.sh
+sudo ./quick_fix.sh
+sudo ./install_rpi5.sh
+
+# Lösung 2 - Komplette Neuinstallation:
+curl -fsSL https://raw.githubusercontent.com/OliverRebock/HeizungsPI2/main/fresh_install.sh | sudo bash
+sudo ./install_rpi5.sh
+
+# Lösung 3 - Manuell:
+cd /home/pi/heizung-monitor
+sudo git stash
+sudo git pull origin main
+sudo chmod +x *.sh
 sudo ./install_rpi5.sh
 ```
 

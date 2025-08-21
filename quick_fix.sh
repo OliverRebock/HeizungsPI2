@@ -6,25 +6,75 @@
 echo "🔧 Git-Konflikt Quick-Fix"
 echo "========================="
 
+# Prüfen ob als root ausgeführt
+if [[ $EUID -ne 0 ]]; then
+    echo "❌ Dieses Script muss als root ausgeführt werden!"
+    echo "Verwendung: sudo $0"
+    exit 1
+fi
+
+# Zum Projekt-Verzeichnis wechseln
+if [ ! -d "/home/pi/heizung-monitor" ]; then
+    echo "❌ Projekt-Verzeichnis nicht gefunden: /home/pi/heizung-monitor"
+    echo "Führe zuerst die Erstinstallation aus!"
+    exit 1
+fi
+
 cd /home/pi/heizung-monitor
 
-echo "Sichere lokale Änderungen..."
-[ -f ".env" ] && cp .env .env.backup
-[ -f "config/heating_circuits.yaml" ] && cp config/heating_circuits.yaml config/heating_circuits.yaml.backup
+echo "📋 Sichere lokale Änderungen..."
+# Konfigurationsdateien sichern
+if [ -f ".env" ]; then
+    cp .env .env.backup
+    echo "✅ .env gesichert"
+fi
 
-echo "Löse Git-Konflikt..."
-git stash  # Sichere lokale Änderungen
-git pull origin main  # Update vom Repository
+if [ -f "config/heating_circuits.yaml" ]; then
+    cp config/heating_circuits.yaml config/heating_circuits.yaml.backup
+    echo "✅ heating_circuits.yaml gesichert"
+fi
 
-echo "Stelle Konfigurationen wieder her..."
-[ -f ".env.backup" ] && cp .env.backup .env
-[ -f "config/heating_circuits.yaml.backup" ] && cp config/heating_circuits.yaml.backup config/heating_circuits.yaml
+echo "🔄 Löse Git-Konflikt..."
 
-echo "Mache Scripts ausführbar..."
-chmod +x *.sh
+# Git-Berechtigungen korrigieren
+chown -R pi:pi /home/pi/heizung-monitor/.git
+chmod -R 755 /home/pi/heizung-monitor/.git
+
+# Als pi-User git-Operationen ausführen
+sudo -u pi git stash  # Sichere lokale Änderungen
+sudo -u pi git fetch origin
+sudo -u pi git reset --hard origin/main  # Harte Zurücksetzung
+sudo -u pi git clean -fd  # Entferne unverfolgte Dateien
+
+echo "📁 Stelle Konfigurationen wieder her..."
+if [ -f ".env.backup" ]; then
+    cp .env.backup .env
+    chown pi:pi .env
+    echo "✅ .env wiederhergestellt"
+fi
+
+if [ -f "config/heating_circuits.yaml.backup" ]; then
+    cp config/heating_circuits.yaml.backup config/heating_circuits.yaml
+    chown pi:pi config/heating_circuits.yaml
+    echo "✅ heating_circuits.yaml wiederhergestellt"
+fi
+
+echo "🔧 Mache Scripts ausführbar..."
+# Alle .sh Dateien ausführbar machen
+find . -name "*.sh" -type f -exec chmod +x {} \;
+chown -R pi:pi /home/pi/heizung-monitor
+
+# Spezielle Script-Berechtigungen
 [ -f "scripts/backup.sh" ] && chmod +x scripts/backup.sh
 
-echo "✅ Git-Konflikt gelöst!"
+echo "🧹 Räume temporäre Dateien auf..."
+rm -f .env.backup config/heating_circuits.yaml.backup
+rm -f get-docker.sh 2>/dev/null || true  # Docker-Installationsskript entfernen falls vorhanden
+
 echo ""
-echo "Führe jetzt die Installation fort:"
-echo "sudo ./install_rpi5.sh"
+echo "✅ Git-Konflikt erfolgreich gelöst!"
+echo ""
+echo "📋 Nächste Schritte:"
+echo "1. Installation fortsetzen: sudo ./install_rpi5.sh"
+echo "2. Oder System-Update: sudo ./update_system.sh"
+echo ""
