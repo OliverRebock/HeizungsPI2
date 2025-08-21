@@ -650,6 +650,11 @@ git pull origin main
 chmod +x fix_service_errors.sh
 ./fix_service_errors.sh
 
+# Speziell für Logging-Berechtigungsfehler:
+# "PermissionError: [Errno 13] Permission denied: '/var/log/heizung-monitor.log'"
+chmod +x fix_logging_permissions.sh
+./fix_logging_permissions.sh
+
 # Detaillierte Service-Diagnose
 chmod +x debug_service.py
 python3 debug_service.py
@@ -658,15 +663,16 @@ python3 debug_service.py
 sudo journalctl -u heizung-monitor --no-pager -n 50
 
 # Häufigste Ursachen:
-# 1. Python Virtual Environment fehlt oder defekt
-# 2. Dependencies nicht installiert
-# 3. Konfigurationsdateien fehlen (.env, heating_circuits.yaml)
-# 4. 1-Wire Interface nicht aktiviert
-# 5. InfluxDB Container nicht gestartet
-# 6. Berechtigungsprobleme
+# 1. Logging-Berechtigungen (häufigster Fehler)
+# 2. Python Virtual Environment fehlt oder defekt
+# 3. Dependencies nicht installiert
+# 4. Konfigurationsdateien fehlen (.env, heating_circuits.yaml)
+# 5. 1-Wire Interface nicht aktiviert
+# 6. InfluxDB Container nicht gestartet
 
 # Komplette Service-Reparatur:
 sudo systemctl stop heizung-monitor
+./fix_logging_permissions.sh  # Neu: Behebt Logging-Probleme
 ./fix_service_errors.sh
 sudo systemctl start heizung-monitor
 sudo systemctl status heizung-monitor

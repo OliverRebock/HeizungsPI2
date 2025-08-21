@@ -51,22 +51,46 @@ except ImportError:
 log_file = os.getenv('LOG_FILE', '/var/log/heizung-monitor.log')
 log_level = os.getenv('LOG_LEVEL', 'INFO')
 
-# Log-Directory erstellen falls nötig
-log_dir = os.path.dirname(log_file)
-if log_dir and not os.path.exists(log_dir):
+# Robuste Log-Datei Konfiguration
+log_handlers = []
+
+# Console Handler (immer verfügbar)
+log_handlers.append(logging.StreamHandler())
+
+# File Handler (mit Fallback)
+try:
+    # Prüfe ob Log-Directory existiert und schreibbar ist
+    log_dir = os.path.dirname(log_file)
+    if log_dir and not os.path.exists(log_dir):
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+        except PermissionError:
+            log_file = 'heizung-monitor.log'  # Fallback auf lokales Log
+    
+    # Teste Schreibberechtigung
+    test_file = log_file + '.test'
     try:
-        os.makedirs(log_dir, exist_ok=True)
-    except PermissionError:
-        # Fallback auf lokales Log
-        log_file = 'heizung-monitor.log'
+        with open(test_file, 'w') as f:
+            f.write('test')
+        os.remove(test_file)
+        # Log-Datei ist schreibbar
+        log_handlers.append(logging.FileHandler(log_file))
+    except (PermissionError, OSError):
+        # Fallback auf lokales Log im Arbeitsverzeichnis
+        local_log = 'heizung-monitor.log'
+        try:
+            log_handlers.append(logging.FileHandler(local_log))
+            print(f"⚠️ Verwende lokale Log-Datei: {local_log}")
+        except Exception:
+            print("⚠️ Nur Console-Logging verfügbar")
+
+except Exception as e:
+    print(f"⚠️ Log-Konfiguration Fehler: {e}")
 
 logging.basicConfig(
     level=getattr(logging, log_level.upper(), logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_file),
-        logging.StreamHandler()
-    ]
+    handlers=log_handlers
 )
 
 logger = logging.getLogger(__name__)
