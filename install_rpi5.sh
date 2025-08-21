@@ -1,5 +1,22 @@
 #!/bin/bash
-# Installations-Skript für Heizungsüberwachung auf Raspberry Pi 5
+#!/bin/bash
+
+# Heizungsüberwachung Installation für Raspberry Pi 5
+# Automatische Installation aller Komponenten
+
+set -e
+
+# Docker Compose Funktion - unterstützt beide Varianten
+docker_compose() {
+    if command -v docker-compose &> /dev/null; then
+        docker-compose "$@"
+    elif docker compose version &> /dev/null; then
+        docker compose "$@"
+    else
+        error "Weder 'docker-compose' noch 'docker compose' verfügbar!"
+        exit 1
+    fi
+}
 # Kann direkt von GitHub ausgeführt werden: curl -fsSL https://raw.githubusercontent.com/OliverRebock/HeizungsPI2/main/install_rpi5.sh | sudo bash
 
 set -e  # Beende bei Fehlern
@@ -101,12 +118,12 @@ else
 fi
 
 # Docker Compose installieren
-if ! command -v docker-compose &> /dev/null; then
+if ! command -v docker-compose &> /dev/null && ! docker compose version &> /dev/null 2>&1; then
     log "Installiere Docker Compose..."
     apt install -y docker-compose-plugin
-    log "Docker Compose installiert"
+    log "Docker Compose Plugin installiert"
 else
-    log "Docker Compose bereits installiert"
+    log "Docker Compose bereits verfügbar"
 fi
 
 # Docker Service starten
@@ -119,14 +136,14 @@ log "Schritt 5: InfluxDB und Grafana Container starten..."
 cd "$PROJECT_DIR"
 
 # Docker Compose starten
-docker-compose up -d
+docker_compose up -d
 
 # Warten bis Container gestartet sind
 log "Warte auf Container-Start..."
 sleep 30
 
 # Container-Status prüfen
-if docker-compose ps | grep -q "Up"; then
+if docker_compose ps | grep -q "Up"; then
     log "✅ InfluxDB und Grafana Container erfolgreich gestartet"
     log "📊 InfluxDB: http://$(hostname -I | awk '{print $1}'):8086"
     log "📈 Grafana: http://$(hostname -I | awk '{print $1}'):3000"

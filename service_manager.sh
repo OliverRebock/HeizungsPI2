@@ -14,6 +14,18 @@ NC='\033[0m' # No Color
 
 SERVICES=("heizung-monitor" "heizung-dashboard")
 
+# Docker Compose Funktion - unterstützt beide Varianten
+docker_compose() {
+    if command -v docker-compose &> /dev/null; then
+        docker-compose "$@"
+    elif docker compose version &> /dev/null; then
+        docker compose "$@"
+    else
+        echo "Weder 'docker-compose' noch 'docker compose' verfügbar!"
+        return 1
+    fi
+}
+
 log() {
     echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')] $1${NC}"
 }
@@ -67,8 +79,8 @@ show_status() {
     # Docker Container Status
     echo "=== Docker Container Status ==="
     cd "$(dirname "$0")"
-    if command -v docker-compose &> /dev/null; then
-        docker-compose ps
+    if command -v docker-compose &> /dev/null || docker compose version &> /dev/null 2>&1; then
+        docker_compose ps
     else
         echo "Docker Compose nicht verfügbar"
     fi

@@ -502,6 +502,62 @@ docker-compose logs -f
 docker volume ls
 ```
 
-## 📄 Lizenz
+## � Troubleshooting
+
+### Docker Compose Kompatibilität
+
+⚠️ **Häufiger Fehler:** `docker-compose: command not found`
+
+Das System unterstützt automatisch beide Docker Compose Varianten:
+- **Legacy:** `docker-compose` (v1.x)
+- **Modern:** `docker compose` (v2.x Plugin)
+
+**Automatische Lösung:**
+```bash
+# Das Installationsskript erkennt automatisch die verfügbare Version
+./install_rpi5.sh
+```
+
+**Manuelle Prüfung:**
+```bash
+# Verfügbare Versionen testen:
+docker-compose version  # Legacy Version
+docker compose version  # Plugin Version
+
+# Plugin installieren falls nötig:
+sudo apt install docker-compose-plugin
+```
+
+**Skript-Updates:** Alle Scripts (`install_rpi5.sh`, `docker-manage.sh`, `service_manager.sh`) verwenden automatisch die verfügbare Variante.
+
+### Weitere häufige Probleme
+
+**1-Wire Sensoren nicht erkannt:**
+```bash
+# Interface prüfen
+ls /sys/bus/w1/devices/
+# Sollte 28-xxxxxxxxxxxx Verzeichnisse zeigen
+
+# Neustart erforderlich nach config.txt Änderung
+sudo reboot
+```
+
+**Permission Denied Fehler:**
+```bash
+# Benutzer zur docker Gruppe hinzufügen
+sudo usermod -aG docker $USER
+# Neuanmeldung erforderlich
+```
+
+**Service-Status prüfen:**
+```bash
+# Alle Services prüfen
+./service_manager.sh status
+
+# Logs überwachen
+./service_manager.sh logs
+```
+
+## �📄 Lizenz
 
 MIT License - Siehe LICENSE Datei für Details.

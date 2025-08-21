@@ -1,5 +1,22 @@
 #!/bin/bash
-# Docker Management Skript für Heizungsüberwachung
+#!/bin/bash
+
+# Docker Container Management für Heizungsüberwachung
+# Vereinfacht die Verwaltung der InfluxDB und Grafana Container
+
+set -e
+
+# Docker Compose Funktion - unterstützt beide Varianten
+docker_compose() {
+    if command -v docker-compose &> /dev/null; then
+        docker-compose "$@"
+    elif docker compose version &> /dev/null; then
+        docker compose "$@"
+    else
+        echo "Weder 'docker-compose' noch 'docker compose' verfügbar!"
+        exit 1
+    fi
+}
 
 # Farben
 GREEN='\033[0;32m'
@@ -53,25 +70,25 @@ case "$1" in
     start)
         log "Starte Docker Container..."
         ensure_project_dir
-        docker-compose up -d
+        docker_compose up -d
         log "Container gestartet"
         ;;
     stop)
         log "Stoppe Docker Container..."
         ensure_project_dir
-        docker-compose down
+        docker_compose down
         log "Container gestoppt"
         ;;
     restart)
         log "Starte Docker Container neu..."
         ensure_project_dir
-        docker-compose restart
+        docker_compose restart
         log "Container neu gestartet"
         ;;
     status)
         echo -e "${BLUE}📊 Container-Status:${NC}"
         ensure_project_dir
-        docker-compose ps
+        docker_compose ps
         echo ""
         echo -e "${BLUE}📈 Service-URLs:${NC}"
         echo "InfluxDB: http://$(hostname -I | awk '{print $1}'):8086"
@@ -81,16 +98,16 @@ case "$1" in
         echo -e "${BLUE}📄 Container-Logs:${NC}"
         ensure_project_dir
         if [ -n "$2" ]; then
-            docker-compose logs -f "$2"
+            docker_compose logs -f "$2"
         else
-            docker-compose logs -f
+            docker_compose logs -f
         fi
         ;;
     update)
         log "Aktualisiere Container-Images..."
         ensure_project_dir
-        docker-compose pull
-        docker-compose up -d
+        docker_compose pull
+        docker_compose up -d
         log "Container-Images aktualisiert"
         ;;
     backup)
@@ -130,9 +147,9 @@ case "$1" in
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             ensure_project_dir
-            docker-compose down -v
+            docker_compose down -v
             docker volume prune -f
-            docker-compose up -d
+            docker_compose up -d
             log "System zurückgesetzt"
         else
             log "Reset abgebrochen"
