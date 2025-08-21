@@ -221,62 +221,274 @@ fi
 
 # 8. InfluxDB Daten prüfen
 echo ""
-info "8. InfluxDB Daten:"
+info "8. InfluxDB Daten & Verbindung:"
 if [ -f ".env" ]; then
     source .env
-    if command -v curl &>/dev/null && curl -s http://localhost:8086/health &>/dev/null; then
-        # Versuche Daten aus InfluxDB zu lesen
+    
+    # InfluxDB Gesundheitscheck
+    if curl -s http://localhost:8086/health &>/dev/null; then
+        echo -e "${GREEN}✅ InfluxDB Service erreichbar${NC}"
+        
+        # Bucket prüfen
+        BUCKETS=$(curl -s -H "Authorization: Token ${INFLUXDB_TOKEN:-heizung-monitoring-token-2024}" \
+            http://localhost:8086/api/v2/buckets 2>/dev/null | grep -o '"name":"[^"]*"' | cut -d'"' -f4)
+        
+        if echo "$BUCKETS" | grep -q "${INFLUXDB_BUCKET:-heizung-daten}"; then
+            echo -e "${GREEN}✅ InfluxDB Bucket '${INFLUXDB_BUCKET:-heizung-daten}' existiert${NC}"
+        else
+            error "❌ InfluxDB Bucket '${INFLUXDB_BUCKET:-heizung-daten}' fehlt!"
+            echo "   Verfügbare Buckets: $BUCKETS"
+        fi
+        
+        # Versuche Daten zu lesen
+        echo ""
+        echo "   📊 Datenbankinhalt prüfen..."
+        
+        # Query für letzte Daten
         QUERY_RESULT=$(curl -s -G http://localhost:8086/api/v2/query \
             --data-urlencode "org=${INFLUXDB_ORG:-heizung-monitoring}" \
-            --data-urlencode "bucket=${INFLUXDB_BUCKET:-heizung-daten}" \
-            --data-urlencode "q=from(bucket: \"${INFLUXDB_BUCKET:-heizung-daten}\") |> range(start: -1h) |> limit(n: 1)" \
+            --data-urlencode "q=from(bucket: \"${INFLUXDB_BUCKET:-heizung-daten}\") |> range(start: -24h) |> group() |> count() |> yield()" \
             -H "Authorization: Token ${INFLUXDB_TOKEN:-heizung-monitoring-token-2024}" 2>/dev/null)
         
         if echo "$QUERY_RESULT" | grep -q "_value"; then
-            echo -e "${GREEN}✅ Daten in InfluxDB gefunden${NC}"
-            echo "   Letzte Daten verfügbar"
+            DATA_COUNT=$(echo "$QUERY_RESULT" | grep -o '"_value":[0-9]*' | head -1 | cut -d':' -f2)
+            echo -e "${GREEN}✅ $DATA_COUNT Datenpunkte in letzten 24h gefunden${NC}"
         else
-            warn "⚠️  Keine Daten in InfluxDB"
-            echo "   Monitoring-Service startet möglicherweise gerade"
+            warn "⚠️  Keine Daten in InfluxDB (letzte 24h)"
         fi
+        
+        # Query für verschiedene Measurements
+        echo ""
+        echo "   📈 Measurement-Typen prüfen..."
+        for measurement in "temperature" "heating_room" "sensor_data" "heating_circuit"; do
+            MEASUREMENT_DATA=$(curl -s -G http://localhost:8086/api/v2/query \
+                --data-urlencode "org=${INFLUXDB_ORG:-heizung-monitoring}" \
+                --data-urlencode "q=from(bucket: \"${INFLUXDB_BUCKET:-heizung-daten}\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"$measurement\") |> limit(n: 1)" \
+                -H "Authorization: Token ${INFLUXDB_TOKEN:-heizung-monitoring-token-2024}" 2>/dev/null)
+            
+            if echo "$MEASUREMENT_DATA" | grep -q "_value"; then
+                echo -e "   ${GREEN}✅ $measurement: Daten vorhanden${NC}"
+            else
+                echo -e "   ${YELLOW}⚠️  $measurement: Keine Daten${NC}"
+            fi
+        done
+        
+    else
+        error "❌ InfluxDB Service nicht erreichbar!"
+        echo "   Prüfe Container-Status: docker-compose ps"
+        echo "   Prüfe Container-Logs: docker-compose logs influxdb"
     fi
+else
+    error "❌ .env Datei nicht gefunden!"
+    echo "   Kopiere .env.example zu .env"
 fi
 
-# 9. Logs prüfen
+# 9. Service-Status detailliert
 echo ""
-info "9. Aktuelle Logs (letzte 5 Zeilen):"
+info "9. Heizung-Monitor Service Status:"
 if systemctl is-active --quiet heizung-monitor; then
-    echo "=== Monitoring Service ==="
-    journalctl -u heizung-monitor -n 5 --no-pager -q 2>/dev/null || echo "Keine Logs verfügbar"
+    echo -e "${GREEN}✅ Service läuft${NC}"
+    
+    # Service-Details
+    echo "   📊 Service-Details:"
+    systemctl show heizung-monitor --property=ActiveState,SubState,LoadState,ExecMainStartTimestamp | while read line; do
+        echo "      $line"
+    done
+    
+    # Prozess-Info
+    PID=$(systemctl show heizung-monitor --property=MainPID | cut -d'=' -f2)
+    if [ "$PID" != "0" ]; then
+        echo "   🔍 Prozess-Info (PID: $PID):"
+        ps -p $PID -o pid,ppid,cmd,etime 2>/dev/null || echo "      Prozess-Info nicht verfügbar"
+    fi
+    
+else
+    error "❌ Service läuft NICHT!"
+    echo "   Status: $(systemctl is-active heizung-monitor)"
+    echo "   Starte mit: sudo systemctl start heizung-monitor"
 fi
 
-if docker ps | grep -q influxdb; then
+# 10. Logs erweitert prüfen
+echo ""
+info "10. Detaillierte Log-Analyse:"
+
+echo "   === Heizung-Monitor Service Logs (letzte 10 Zeilen) ==="
+if journalctl -u heizung-monitor -n 10 --no-pager -q 2>/dev/null; then
     echo ""
-    echo "=== InfluxDB Container ==="
-    docker logs heizung-influxdb --tail 3 2>/dev/null || echo "Keine Container-Logs verfügbar"
+else
+    echo "   Keine Service-Logs verfügbar"
+fi
+
+# Nach Fehlern suchen
+echo "   === Fehler in Service-Logs ==="
+ERROR_LOGS=$(journalctl -u heizung-monitor --since "1 hour ago" | grep -i "error\|failed\|exception" | tail -5)
+if [ -n "$ERROR_LOGS" ]; then
+    echo "$ERROR_LOGS"
+else
+    echo "   Keine Fehler in letzter Stunde gefunden"
 fi
 
 echo ""
-echo "🎯 Empfohlene Aktionen:"
-echo "======================"
+echo "   === InfluxDB Container Logs (letzte 5 Zeilen) ==="
+if docker ps | grep -q influxdb; then
+    docker logs heizung-influxdb --tail 5 2>/dev/null || echo "   Keine Container-Logs verfügbar"
+else
+    echo "   InfluxDB Container läuft nicht!"
+fi
 
-# Empfehlungen basierend auf Diagnose
+# 11. Konfiguration prüfen
+echo ""
+info "11. Konfiguration prüfen:"
+
+if [ -f "main.py" ]; then
+    echo -e "${GREEN}✅ main.py vorhanden${NC}"
+    
+    # Nach InfluxDB-Verbindung in main.py suchen
+    if grep -q "influxdb_client\|InfluxDB" main.py; then
+        echo "   ✅ InfluxDB-Integration in main.py gefunden"
+    else
+        warn "   ⚠️  Keine InfluxDB-Integration in main.py erkannt"
+    fi
+else
+    error "❌ main.py fehlt!"
+fi
+
+if [ -f "config/heating_circuits.yaml" ]; then
+    echo -e "${GREEN}✅ Heizkreis-Konfiguration vorhanden${NC}"
+    SENSOR_COUNT=$(grep -c "sensor_id:" config/heating_circuits.yaml 2>/dev/null || echo "0")
+    echo "   📊 Konfigurierte Sensoren: $SENSOR_COUNT"
+else
+    warn "⚠️  config/heating_circuits.yaml fehlt"
+fi
+
+echo ""
+echo "🎯 Empfohlene Aktionen (InfluxDB Daten-Problem):"
+echo "==============================================="
+
+# Priorisierte Empfehlungen für fehlende Daten
+echo ""
+echo "🔴 KRITISCH - Sofortige Maßnahmen:"
+
 if ! docker ps | grep -q influxdb; then
-    echo "1. Container starten: docker-compose up -d"
+    echo "   1. InfluxDB Container starten:"
+    echo "      docker-compose up -d"
+    echo ""
 fi
 
 if ! systemctl is-active --quiet heizung-monitor; then
-    echo "2. Monitoring-Service starten: sudo systemctl start heizung-monitor"
+    echo "   2. Monitoring-Service starten:"
+    echo "      sudo systemctl start heizung-monitor"
+    echo "      sudo systemctl enable heizung-monitor"
+    echo ""
 fi
 
-if [ ! -f ".env" ]; then
-    echo "3. Konfiguration erstellen: cp .env.example .env"
-fi
-
+# Sensor-Probleme
 SENSORS=$(ls /sys/bus/w1/devices/28-* 2>/dev/null | wc -l)
 if [ "$SENSORS" -eq 0 ]; then
-    echo "4. 1-Wire Interface aktivieren: sudo reboot"
+    echo "   3. 1-Wire Sensoren aktivieren:"
+    echo "      sudo modprobe w1-gpio w1-therm"
+    echo "      # Falls das nicht hilft: sudo reboot"
+    echo ""
 fi
+
+echo "🟡 KONFIGURATION - Prüfen und korrigieren:"
+
+if [ ! -f ".env" ]; then
+    echo "   4. InfluxDB-Konfiguration erstellen:"
+    echo "      cp .env.example .env"
+    echo "      nano .env  # Zugangsdaten prüfen"
+    echo ""
+fi
+
+# Python Environment
+if [ ! -d "venv" ]; then
+    echo "   5. Python Virtual Environment reparieren:"
+    echo "      python3 -m venv venv"
+    echo "      source venv/bin/activate"
+    echo "      pip install -r requirements.txt"
+    echo ""
+fi
+
+echo "🟢 DIAGNOSE - Probleme identifizieren:"
+
+echo "   6. Sensoren manuell testen:"
+echo "      source venv/bin/activate"
+echo "      python test_sensors.py"
+echo "      python test_dht22_robust.py"
+echo ""
+
+echo "   7. InfluxDB Verbindung testen:"
+echo "      curl http://localhost:8086/health"
+echo "      # Sollte Status 'pass' zeigen"
+echo ""
+
+echo "   8. Service-Logs live überwachen:"
+echo "      sudo journalctl -u heizung-monitor -f"
+echo "      # Auf Fehler beim Datenschreiben achten"
+echo ""
+
+echo "   9. Manuelle Datenprüfung in InfluxDB:"
+echo "      docker exec -it heizung-influxdb influx"
+echo "      # Dann in InfluxDB CLI: SHOW BUCKETS"
+echo ""
+
+echo "🔧 REPARATUR - Häufige Lösungen:"
+
+echo "   10. Kompletter Service-Neustart:"
+echo "       sudo systemctl stop heizung-monitor"
+echo "       docker-compose restart"
+echo "       sleep 10"
+echo "       sudo systemctl start heizung-monitor"
+echo ""
+
+echo "   11. Virtual Environment neu aufbauen:"
+echo "       rm -rf venv"
+echo "       python3 -m venv venv"
+echo "       source venv/bin/activate"
+echo "       pip install -r requirements.txt"
+echo ""
+
+echo "   12. InfluxDB Bucket neu erstellen:"
+echo "       # In InfluxDB Web-UI (http://PI_IP:8086):"
+echo "       # Buckets -> Create Bucket -> 'heizung-daten'"
+echo ""
+
+echo "🚨 NOTFALL - Bei anhaltenden Problemen:"
+
+echo "   13. System komplett neu installieren:"
+echo "       sudo systemctl stop heizung-monitor"
+echo "       docker-compose down -v  # Löscht alle Daten!"
+echo "       sudo ./install_rpi5.sh"
+echo ""
+
+echo "   14. 1-Wire Quick-Fix:"
+echo "       chmod +x fix_1wire_sensors.sh"
+echo "       ./fix_1wire_sensors.sh"
+echo ""
+
+echo "   15. DHT22 Quick-Fix:"
+echo "       chmod +x fix_adafruit_dht.sh"
+echo "       ./fix_adafruit_dht.sh"
+echo ""
+
+# Automatische Tests vorschlagen
+echo "💡 AUTOMATISCHE PROBLEMBEHEBUNG:"
+echo ""
+echo "   Führe diese Befehle in der angegebenen Reihenfolge aus:"
+echo ""
+echo "   # 1. Grundsystem prüfen"
+echo "   docker-compose ps"
+echo "   sudo systemctl status heizung-monitor"
+echo ""
+echo "   # 2. Sensoren testen"
+echo "   source venv/bin/activate && python test_sensors.py"
+echo ""
+echo "   # 3. Bei Problemen: Services neu starten"
+echo "   sudo systemctl restart heizung-monitor"
+echo "   docker-compose restart"
+echo ""
+echo "   # 4. Logs überwachen (in separatem Terminal)"
+echo "   sudo journalctl -u heizung-monitor -f"
 
 echo ""
 echo "📊 Monitoring URLs:"

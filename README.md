@@ -649,6 +649,10 @@ cd /home/pi/heizung-monitor
 chmod +x diagnose_influxdb.sh
 ./diagnose_influxdb.sh
 
+# Quick-Fix für InfluxDB Daten-Probleme (empfohlen)
+chmod +x fix_influxdb_data.sh
+./fix_influxdb_data.sh
+
 # Services prüfen und starten
 sudo systemctl status heizung-monitor
 sudo systemctl start heizung-monitor
@@ -661,7 +665,39 @@ docker-compose up -d
 sudo journalctl -u heizung-monitor -f
 
 # Sensoren manuell testen
+source venv/bin/activate
 python test_sensors.py
+
+# Häufigste Ursachen und Lösungen:
+
+# 1. Service läuft nicht
+sudo systemctl start heizung-monitor
+sudo systemctl enable heizung-monitor
+
+# 2. Container gestoppt
+docker-compose up -d
+
+# 3. Virtual Environment defekt
+rm -rf venv
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# 4. 1-Wire Sensoren nicht erkannt
+./fix_1wire_sensors.sh
+
+# 5. InfluxDB Bucket fehlt
+# Web-UI öffnen: http://PI_IP:8086
+# Login: admin/heizung123!
+# Buckets -> Create Bucket -> "heizung-daten"
+
+# 6. Konfiguration prüfen
+cat .env
+# Sollte enthalten:
+# INFLUXDB_URL=http://localhost:8086
+# INFLUXDB_TOKEN=heizung-monitoring-token-2024
+# INFLUXDB_ORG=heizung-monitoring
+# INFLUXDB_BUCKET=heizung-daten
 ```
 
 **InfluxDB Verbindungsprobleme:**
