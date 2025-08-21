@@ -133,7 +133,7 @@ StandardError=journal
 SyslogIdentifier=heizung-monitor
 
 # Umgebungsvariablen
-EnvironmentFile=/home/pi/heizung-monitor/.env
+EnvironmentFile=-/home/pi/heizung-monitor/.env
 
 # Berechtigungen
 UMask=0002
