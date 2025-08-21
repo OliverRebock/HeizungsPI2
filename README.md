@@ -793,6 +793,41 @@ python test_sensors.py
 deactivate
 ```
 
+**Virtual Environment fehlt komplett:**
+```bash
+# Fehler: "-bash: venv/bin/activate: No such file or directory"
+# Ursache: Virtual Environment wurde nie erstellt oder ist beschädigt
+
+# Schritt 1: Ins Projektverzeichnis wechseln
+cd /home/pi/heizung-monitor
+
+# Schritt 2: Prüfen ob venv-Verzeichnis existiert
+ls -la venv/
+# Falls Fehler: "ls: cannot access 'venv/': No such file or directory"
+
+# Schritt 3: Virtual Environment neu erstellen
+python3 -m venv venv
+
+# Schritt 4: Prüfen ob erfolgreich erstellt
+ls -la venv/bin/
+# Sollte activate, python, pip, etc. anzeigen
+
+# Schritt 5: Virtual Environment aktivieren
+source venv/bin/activate
+# Prompt sollte sich ändern zu: (venv) pi@myPI:~/heizung-monitor$
+
+# Schritt 6: Dependencies installieren
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Schritt 7: Test durchführen
+python test_sensors.py
+
+# Quick-Fix mit Automation (empfohlen):
+./fix_complete_service.sh
+# Erstellt automatisch venv und installiert alle Dependencies
+```
+
 **Alternative: Komplette Neuinstallation (empfohlen):**
 ```bash
 # Das Installationsskript erstellt automatisch das Virtual Environment
