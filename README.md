@@ -642,6 +642,36 @@ ls /sys/bus/w1/devices/
 sudo reboot
 ```
 
+**Service-Fehler (exit code 1):**
+```bash
+# Schnelle Diagnose und Fix für Service-Fehler
+cd /home/pi/heizung-monitor
+git pull origin main
+chmod +x fix_service_errors.sh
+./fix_service_errors.sh
+
+# Detaillierte Service-Diagnose
+chmod +x debug_service.py
+python3 debug_service.py
+
+# Service-Logs analysieren
+sudo journalctl -u heizung-monitor --no-pager -n 50
+
+# Häufigste Ursachen:
+# 1. Python Virtual Environment fehlt oder defekt
+# 2. Dependencies nicht installiert
+# 3. Konfigurationsdateien fehlen (.env, heating_circuits.yaml)
+# 4. 1-Wire Interface nicht aktiviert
+# 5. InfluxDB Container nicht gestartet
+# 6. Berechtigungsprobleme
+
+# Komplette Service-Reparatur:
+sudo systemctl stop heizung-monitor
+./fix_service_errors.sh
+sudo systemctl start heizung-monitor
+sudo systemctl status heizung-monitor
+```
+
 **Keine Daten in InfluxDB:**
 ```bash
 # Vollständige Diagnose ausführen
