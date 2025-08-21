@@ -127,7 +127,8 @@ class HeatingRoomSensor:
             return {
                 'temperature': 20.0,  # Dummy-Werte für Tests
                 'humidity': 50.0,
-                'dew_point': 9.3
+                'dew_point': 9.3,
+                'timestamp': datetime.utcnow().isoformat()
             }
         
         self._wait_for_reading_interval()
@@ -166,7 +167,8 @@ class HeatingRoomSensor:
                         return {
                             'temperature': round(temperature, 1),
                             'humidity': round(humidity, 1),
-                            'dew_point': dew_point
+                            'dew_point': dew_point,
+                            'timestamp': datetime.utcnow().isoformat()
                         }
                     else:
                         logger.warning(f"{self.name}: Ungültige Werte - T:{temperature}°C, H:{humidity}%")
@@ -188,7 +190,8 @@ class HeatingRoomSensor:
         return {
             'temperature': None,
             'humidity': None,
-            'dew_point': None
+            'dew_point': None,
+            'timestamp': datetime.utcnow().isoformat()
         }
     
     def _calculate_dew_point(self, temperature: float, humidity: float) -> Optional[float]:

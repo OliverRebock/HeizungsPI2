@@ -7,23 +7,42 @@ Testet den DHT22 Temperatur- und Luftfeuchtigkeitssensor auf GPIO 18
 import sys
 import time
 import os
+from pathlib import Path
 
-# Pfad für lokale Module hinzufügen
-sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
+# Projekt-Root zum Python-Pfad hinzufügen
+project_root = Path(__file__).parent
+sys.path.insert(0, str(project_root))
 
 try:
-    import board
-    import adafruit_dht
-    from sensors.dht22_sensor import HeatingRoomSensor
+    # Versuche DHT-Bibliotheken zu importieren
+    try:
+        import board
+        import adafruit_dht
+        ADAFRUIT_AVAILABLE = True
+        print("✅ Adafruit CircuitPython DHT verfügbar")
+    except ImportError:
+        ADAFRUIT_AVAILABLE = False
+        print("⚠️ Adafruit CircuitPython DHT nicht verfügbar")
+    
+    # Importiere HeatingRoomSensor
+    from src.sensors.dht22_sensor import HeatingRoomSensor
+    HEATING_SENSOR_AVAILABLE = True
+    print("✅ HeatingRoomSensor verfügbar")
+    
 except ImportError as e:
     print(f"❌ Import-Fehler: {e}")
     print("Installiere fehlende Pakete mit: pip install -r requirements.txt")
-    sys.exit(1)
+    print("Oder verwende Virtual Environment: source venv/bin/activate")
+    HEATING_SENSOR_AVAILABLE = False
 
 def test_raw_dht22():
     """Test des DHT22 mit der Adafruit-Bibliothek direkt"""
     print("🌡️ DHT22 Raw-Test (Adafruit Library)")
     print("===================================")
+    
+    if not ADAFRUIT_AVAILABLE:
+        print("⚠️ Adafruit-Bibliothek nicht verfügbar - überspringe Raw-Test")
+        return
     
     try:
         # DHT22 an GPIO 18 initialisieren
@@ -65,6 +84,10 @@ def test_sensor_class():
     print("\n🔧 DHT22 Sensor-Klassen-Test")
     print("============================")
     
+    if not HEATING_SENSOR_AVAILABLE:
+        print("⚠️ HeatingRoomSensor nicht verfügbar - überspringe Test")
+        return False
+    
     try:
         sensor = HeatingRoomSensor(pin=18)
         
@@ -73,12 +96,22 @@ def test_sensor_class():
         
         for i in range(total_attempts):
             print(f"Versuch {i+1}...")
-            data = sensor.read_sensor_data()
-            
-            if data['temperature'] is not None and data['humidity'] is not None:
-                print(f"✅ Temperatur: {data['temperature']:.1f}°C")
-                print(f"✅ Luftfeuchtigkeit: {data['humidity']:.1f}%")
-                print(f"✅ Timestamp: {data['timestamp']}")
+            try:
+                data = sensor.read_sensor_data()
+                
+                if data['temperature'] is not None and data['humidity'] is not None:
+                    print(f"✅ Temperatur: {data['temperature']:.1f}°C")
+                    print(f"✅ Luftfeuchtigkeit: {data['humidity']:.1f}%")
+                    if data['dew_point'] is not None:
+                        print(f"✅ Taupunkt: {data['dew_point']:.1f}°C")
+                    success_count += 1
+                else:
+                    print(f"⚠️ Keine gültigen Daten erhalten")
+                    
+            except Exception as e:
+                print(f"❌ Fehler beim Lesen: {e}")
+                
+            time.sleep(2)
                 success_count += 1
             else:
                 print(f"⚠️ Keine gültigen Daten erhalten")
