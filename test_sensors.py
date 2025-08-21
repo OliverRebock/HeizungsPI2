@@ -348,6 +348,14 @@ def run_dht22_only_test():
     except Exception as e:
         logger.error(f"❌ DHT22-Test Fehler: {e}")
         return test_room_sensor()
+
+def run_all_tests():
+    """Führt alle Sensor-Tests durch"""
+    tests = [
+        ("1-Wire Sensoren", test_1wire_sensors),
+        ("DHT22 Raumsensor", test_dht22_detailed),
+        ("Heizungskreise", test_heating_circuits),
+        ("InfluxDB Verbindung", test_influxdb_connection)
     ]
     
     results = {}
