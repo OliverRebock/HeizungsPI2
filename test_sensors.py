@@ -1,358 +1,361 @@
 #!/usr/bin/env python3
 """
 Test-Skript für alle Sensoren der Heizungsüberwachung
-Überprüft DS18B20 und DHT22 Sensoren
+Überprüft DS18B20 und DHT22 Sensoren mit erweiterten Diagnose-Funktionen
 """
 
 import sys
 import time
 import logging
+import subprocess
+import argparse
+import glob
+import statistics
 from pathlib import Path
 
 # Projekt-Root zum Python-Pfad hinzufügen
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from def main():
-    """Hauptfunktion"""
-    import argparse
-    
-    parser = argparse.ArgumentParser(description='Test-Skript für Heizungsüberwachung Sensoren')
-    parser.add_argument('--dht22', action='store_true', 
-                       help='Führe nur DHT22-Test durch')
-    parser.add_argument('--1wire', action='store_true', 
-                       help='Führe nur 1-Wire-Test durch')
-    parser.add_argument('--heating', action='store_true', 
-                       help='Führe nur Heizungskreis-Test durch')
-    parser.add_argument('--influxdb', action='store_true', 
-                       help='Führe nur InfluxDB-Test durch')
-    parser.add_argument('--all', action='store_true', 
-                       help='Führe alle Tests durch (Standard)')
-    
-    args = parser.parse_args()
-    
-    try:
-        # .env-Datei laden falls vorhanden
-        from dotenv import load_dotenv
-        load_dotenv()
-        
-        success = True
-        
-        # Spezifische Tests ausführen
-        if args.dht22:
-            logger.info("🌡️ Führe nur DHT22-Test durch...")
-            success = run_dht22_only_test()
-        elif args.__dict__.get('1wire'):  # Workaround für 1wire Argument
-            logger.info("🔍 Führe nur 1-Wire-Test durch...")
-            success = test_1wire_interface()
-        elif args.heating:
-            logger.info("🏠 Führe nur Heizungskreis-Test durch...")
-            success = test_heating_circuits()
-        elif args.influxdb:
-            logger.info("📊 Führe nur InfluxDB-Test durch...")
-            success = test_database_connection()
-        else:
-            # Vollständigen Systemtest ausführen (Standard)
-            success = run_full_system_test()
-        
-        # Hilfreiche Ausgabe am Ende
-        if success:
-            logger.info("\n🎉 Test erfolgreich abgeschlossen!")
-        else:
-            logger.error("\n❌ Test fehlgeschlagen!")
-            logger.info("💡 Für detaillierte DHT22-Diagnose: python test_dht22.py")
-            logger.info("💡 Für vollständige System-Diagnose: ./diagnose_influxdb.sh")
-        
-        # Exit-Code setzen
-        sys.exit(0 if success else 1)
-        
-    except KeyboardInterrupt:
-        logger.info("Test durch Benutzer abgebrochen")
-        sys.exit(1)
-    except Exception as e:
-        logger.error(f"Unerwarteter Fehler: {e}")
-        sys.exit(1)_sensors import HeatingSystemManager
-from src.sensors.dht22_sensor import HeatingRoomSensor
-
 # Logging konfigurieren
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
 )
-
 logger = logging.getLogger(__name__)
 
 def test_1wire_interface():
-    """Testet das 1-Wire Interface"""
+    """Testet das 1-Wire Interface und alle DS18B20 Sensoren"""
     logger.info("🔍 Teste 1-Wire Interface...")
     
     try:
-        import os
-        devices = os.listdir('/sys/bus/w1/devices/')
-        ds18b20_devices = [d for d in devices if d.startswith('28-')]
+        # 1-Wire Interface prüfen
+        devices = glob.glob('/sys/bus/w1/devices/28-*')
+        if not devices:
+            logger.error("❌ Keine 1-Wire Sensoren gefunden!")
+            logger.info("💡 Prüfe /boot/firmware/config.txt: dtoverlay=w1-gpio")
+            return False
+            
+        logger.info(f"✅ {len(devices)} DS18B20 Sensoren gefunden")
         
-        logger.info(f"✅ 1-Wire Interface verfügbar")
-        logger.info(f"📊 Gefundene DS18B20 Sensoren: {len(ds18b20_devices)}")
-        
-        for device in ds18b20_devices:
-            logger.info(f"   - {device}")
-        
-        return len(ds18b20_devices) > 0
+        # Alle Sensoren testen
+        working_sensors = 0
+        for device in devices:
+            device_id = device.split('/')[-1]
+            try:
+                with open(f"{device}/w1_slave", 'r') as f:
+                    data = f.read()
+                    if "YES" in data and "t=" in data:
+                        temp = int(data.split("t=")[1]) / 1000.0
+                        logger.info(f"  📡 {device_id}: {temp:.1f}°C")
+                        working_sensors += 1
+                    else:
+                        logger.warning(f"  ⚠️ {device_id}: Lesefehler")
+            except Exception as e:
+                logger.error(f"  ❌ {device_id}: {e}")
+                
+        logger.info(f"✅ {working_sensors}/{len(devices)} Sensoren funktionsfähig")
+        return working_sensors > 0
         
     except Exception as e:
-        logger.error(f"❌ 1-Wire Interface-Fehler: {e}")
-        return False
-
-def test_heating_circuits():
-    """Testet alle Heizungskreise"""
-    logger.info("\n🏠 Teste Heizungskreise...")
-    
-    try:
-        heating_manager = HeatingSystemManager()
-        return heating_manager.test_all_circuits()
-        
-    except Exception as e:
-        logger.error(f"❌ Heizungskreis-Test fehlgeschlagen: {e}")
+        logger.error(f"❌ 1-Wire Test fehlgeschlagen: {e}")
         return False
 
 def test_room_sensor():
-    """Testet den DHT22 Raumsensor ausführlich"""
-    logger.info("\n🌡️ Teste DHT22 Raumsensor (GPIO 18)...")
+    """Testet den DHT22 Raumsensor (Basic-Version)"""
+    logger.info("🌡️ Teste DHT22 Raumsensor...")
     
     try:
-        room_sensor = HeatingRoomSensor()
+        import board
+        import adafruit_dht
         
-        # 1. Grundfunktionstest
-        logger.info("📋 DHT22 Grundfunktionstest:")
-        success_count = 0
-        total_attempts = 5
-        temperatures = []
-        humidities = []
+        # DHT22 am GPIO 18 initialisieren
+        dht = adafruit_dht.DHT22(board.D18)
         
-        for i in range(total_attempts):
-            logger.info(f"   Messversuch {i+1}...")
-            success = room_sensor.test_sensor()
-            
-            if success:
-                conditions = room_sensor.check_heating_room_conditions()
-                temp = conditions['temperature']
-                hum = conditions['humidity']
+        # 3 Versuche für stabile Messung
+        for attempt in range(3):
+            try:
+                temperature = dht.temperature
+                humidity = dht.humidity
                 
-                if temp is not None and hum is not None:
-                    logger.info(f"   ✅ Temperatur: {temp:.1f}°C, Luftfeuchtigkeit: {hum:.1f}%")
-                    temperatures.append(temp)
-                    humidities.append(hum)
-                    success_count += 1
+                if temperature is not None and humidity is not None:
+                    logger.info(f"  🌡️ Temperatur: {temperature:.1f}°C")
+                    logger.info(f"  💧 Luftfeuchtigkeit: {humidity:.1f}%")
+                    dht.exit()
+                    return True
                 else:
-                    logger.warning(f"   ⚠️ Leere Daten erhalten")
-            else:
-                logger.warning(f"   ⚠️ Sensor-Test fehlgeschlagen")
-            
-            time.sleep(3)  # DHT22 benötigt Pause zwischen Messungen
-        
-        # 2. Statistiken berechnen
-        if temperatures and humidities:
-            avg_temp = sum(temperatures) / len(temperatures)
-            avg_hum = sum(humidities) / len(humidities)
-            min_temp, max_temp = min(temperatures), max(temperatures)
-            min_hum, max_hum = min(humidities), max(humidities)
-            
-            logger.info(f"📊 DHT22 Statistiken:")
-            logger.info(f"   📈 Erfolgsrate: {success_count}/{total_attempts} ({success_count/total_attempts*100:.1f}%)")
-            logger.info(f"   🌡️ Temperatur - Mittel: {avg_temp:.1f}°C, Bereich: {min_temp:.1f}°C - {max_temp:.1f}°C")
-            logger.info(f"   💧 Luftfeuchtigkeit - Mittel: {avg_hum:.1f}%, Bereich: {min_hum:.1f}% - {max_hum:.1f}%")
-            
-            # 3. Plausibilitätsprüfung
-            logger.info("🔍 DHT22 Plausibilitätsprüfung:")
-            temp_plausible = -20 <= avg_temp <= 60  # Typischer Bereich für Heizungsraum
-            hum_plausible = 10 <= avg_hum <= 90     # Typischer Luftfeuchtigkeitsbereich
-            
-            if temp_plausible:
-                logger.info(f"   ✅ Temperaturwerte plausibel ({avg_temp:.1f}°C)")
-            else:
-                logger.warning(f"   ⚠️ Temperaturwerte unplausibel ({avg_temp:.1f}°C)")
-            
-            if hum_plausible:
-                logger.info(f"   ✅ Luftfeuchtigkeitswerte plausibel ({avg_hum:.1f}%)")
-            else:
-                logger.warning(f"   ⚠️ Luftfeuchtigkeitswerte unplausibel ({avg_hum:.1f}%)")
-            
-            # 4. Stabilität prüfen
-            if len(temperatures) > 1:
-                temp_variation = max_temp - min_temp
-                hum_variation = max_hum - min_hum
+                    logger.warning(f"  ⚠️ Versuch {attempt + 1}: Keine Daten")
+                    
+            except RuntimeError as e:
+                logger.warning(f"  ⚠️ Versuch {attempt + 1}: {e}")
+                time.sleep(2)
                 
-                temp_stable = temp_variation < 5.0  # Temperatur sollte relativ stabil sein
-                hum_stable = hum_variation < 20.0   # Luftfeuchtigkeit kann mehr schwanken
-                
-                logger.info("📊 DHT22 Stabilität:")
-                logger.info(f"   🌡️ Temperatur-Schwankung: {temp_variation:.1f}°C {'✅' if temp_stable else '⚠️'}")
-                logger.info(f"   💧 Luftfeuchtigkeits-Schwankung: {hum_variation:.1f}% {'✅' if hum_stable else '⚠️'}")
-            
-            # 5. Detaillierte Raumdaten anzeigen (bei Erfolg)
-            if success_count > 0:
-                conditions = room_sensor.check_heating_room_conditions()
-                logger.info("📊 Heizungsraum-Zustand:")
-                logger.info(f"   Status: {conditions['status']}")
-                logger.info(f"   Taupunkt: {conditions['dew_point']:.1f}°C")
-                
-                if conditions['alerts']:
-                    for alert in conditions['alerts']:
-                        logger.warning(f"   ⚠️ {alert['type']}: {alert['message']}")
-        
-        # 6. GPIO-Test
-        logger.info("🔌 DHT22 GPIO-Diagnose:")
-        try:
-            import board
-            import digitalio
-            
-            # GPIO 18 als Digital-Pin testen
-            pin = digitalio.DigitalInOut(board.D18)
-            pin.direction = digitalio.Direction.OUTPUT
-            pin.value = True
-            time.sleep(0.1)
-            pin.value = False
-            pin.deinit()
-            logger.info("   ✅ GPIO 18 Funktionstest erfolgreich")
-            
-        except Exception as gpio_error:
-            logger.warning(f"   ⚠️ GPIO-Test fehlgeschlagen: {gpio_error}")
-        
-        success = success_count > 0
-        
-        if success:
-            logger.info("✅ DHT22 Raumsensor funktioniert korrekt")
-        else:
-            logger.error("❌ DHT22 Raumsensor-Test fehlgeschlagen")
-            logger.info("💡 Troubleshooting-Tipps:")
-            logger.info("   - Prüfe Verkabelung (VCC->3.3V, GND->GND, Data->GPIO18)")
-            logger.info("   - Verwende 10kΩ Pull-up Widerstand zwischen Data und VCC")
-            logger.info("   - Warte 2 Sekunden zwischen Messungen")
-            logger.info("   - Führe spezifischen DHT22-Test aus: python test_dht22.py")
-        
-        room_sensor.cleanup()
-        return success
+        dht.exit()
+        logger.error("❌ DHT22 Sensor nicht lesbar")
+        return False
         
     except Exception as e:
-        logger.error(f"❌ DHT22-Test fehlgeschlagen: {e}")
-        logger.error("💡 Installiere fehlende Pakete: pip install adafruit-circuitpython-dht")
+        logger.error(f"❌ DHT22 Test fehlgeschlagen: {e}")
         return False
 
-def test_database_connection():
-    """Testet die InfluxDB-Verbindung"""
-    logger.info("\n📊 Teste InfluxDB-Verbindung...")
+def test_dht22_detailed():
+    """Erweiterte DHT22-Tests mit Statistiken"""
+    logger.info("🌡️ Detaillierte DHT22-Analyse...")
     
     try:
-        from src.database.influxdb_client import HeatingInfluxDBClient
+        import board
+        import adafruit_dht
         
-        influx_client = HeatingInfluxDBClient()
+        dht = adafruit_dht.DHT22(board.D18)
         
-        # Test-Ping
-        if influx_client.client.ping():
-            logger.info("✅ InfluxDB-Verbindung erfolgreich")
-            influx_client.close()
+        temperatures = []
+        humidities = []
+        successful_reads = 0
+        total_attempts = 5
+        
+        logger.info(f"📊 Führe {total_attempts} Messungen durch...")
+        
+        for attempt in range(total_attempts):
+            try:
+                temperature = dht.temperature
+                humidity = dht.humidity
+                
+                if temperature is not None and humidity is not None:
+                    temperatures.append(temperature)
+                    humidities.append(humidity)
+                    successful_reads += 1
+                    logger.info(f"  ✅ Messung {attempt + 1}: {temperature:.1f}°C, {humidity:.1f}%")
+                else:
+                    logger.warning(f"  ❌ Messung {attempt + 1}: Keine Daten")
+                    
+            except RuntimeError as e:
+                logger.warning(f"  ❌ Messung {attempt + 1}: {e}")
+                
+            time.sleep(2)
+        
+        dht.exit()
+        
+        # Statistiken berechnen
+        success_rate = (successful_reads / total_attempts) * 100
+        logger.info(f"\n📈 DHT22 Statistiken:")
+        logger.info(f"  📊 Erfolgsrate: {success_rate:.1f}% ({successful_reads}/{total_attempts})")
+        
+        if temperatures:
+            temp_avg = statistics.mean(temperatures)
+            temp_min = min(temperatures)
+            temp_max = max(temperatures)
+            logger.info(f"  🌡️ Temperatur: {temp_avg:.1f}°C (Min: {temp_min:.1f}°C, Max: {temp_max:.1f}°C)")
+            
+            # Plausibilitätsprüfung
+            if -40 <= temp_avg <= 80:
+                logger.info("  ✅ Temperatur plausibel")
+            else:
+                logger.warning("  ⚠️ Temperatur außerhalb des normalen Bereichs")
+        
+        if humidities:
+            hum_avg = statistics.mean(humidities)
+            hum_min = min(humidities)
+            hum_max = max(humidities)
+            logger.info(f"  💧 Luftfeuchtigkeit: {hum_avg:.1f}% (Min: {hum_min:.1f}%, Max: {hum_max:.1f}%)")
+            
+            # Plausibilitätsprüfung
+            if 0 <= hum_avg <= 100:
+                logger.info("  ✅ Luftfeuchtigkeit plausibel")
+            else:
+                logger.warning("  ⚠️ Luftfeuchtigkeit außerhalb des normalen Bereichs")
+        
+        # Stabilitätsprüfung
+        if len(temperatures) > 1:
+            temp_range = max(temperatures) - min(temperatures)
+            if temp_range < 2.0:
+                logger.info("  ✅ Temperatur-Messwerte stabil")
+            else:
+                logger.warning(f"  ⚠️ Temperatur-Schwankung: {temp_range:.1f}°C")
+        
+        return successful_reads > 0
+        
+    except Exception as e:
+        logger.error(f"❌ DHT22 Detailtest fehlgeschlagen: {e}")
+        return False
+
+def run_dht22_only_test():
+    """Führt spezifische DHT22-Tests durch"""
+    logger.info("🎯 DHT22-spezifischer Test...")
+    
+    # Prüfe zuerst GPIO-Verfügbarkeit
+    try:
+        import board
+        import digitalio
+        
+        # GPIO 18 testen
+        pin = digitalio.DigitalInOut(board.D18)
+        pin.direction = digitalio.Direction.INPUT
+        pin.pull = digitalio.Pull.UP
+        logger.info("✅ GPIO 18 verfügbar")
+        pin.deinit()
+        
+    except Exception as e:
+        logger.error(f"❌ GPIO 18 Test fehlgeschlagen: {e}")
+        return False
+    
+    # Versuche zuerst das dedizierte Test-Script
+    try:
+        logger.info("🔧 Versuche dediziertes DHT22-Test-Script...")
+        result = subprocess.run([sys.executable, "test_dht22.py"], 
+                              capture_output=True, text=True, timeout=60)
+        
+        if result.returncode == 0:
+            logger.info("✅ Dediziertes DHT22-Test erfolgreich")
+            # Output anzeigen
+            for line in result.stdout.split('\n'):
+                if line.strip():
+                    logger.info(f"  {line}")
             return True
         else:
-            logger.error("❌ InfluxDB nicht erreichbar")
-            return False
+            logger.warning("⚠️ Dediziertes DHT22-Test fehlgeschlagen, versuche Basic-Test...")
+            return test_dht22_detailed()
             
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        logger.warning("⚠️ Spezifisches DHT22-Test-Script nicht gefunden")
+        return test_dht22_detailed()
+            
+    except Exception as e:
+        logger.error(f"❌ DHT22-Test Fehler: {e}")
+        return test_dht22_detailed()
+
+def test_heating_circuits():
+    """Testet die konfigurierten Heizungskreise"""
+    logger.info("🏠 Teste Heizungskreise...")
+    
+    try:
+        # Konfiguration laden
+        config_file = Path("config/heating_circuits.yaml")
+        if not config_file.exists():
+            logger.warning("⚠️ Keine Heizkreis-Konfiguration gefunden")
+            return test_1wire_interface()  # Fallback auf 1-Wire Test
+        
+        import yaml
+        with open(config_file, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        circuits = config.get('heating_circuits', {})
+        if not circuits:
+            logger.warning("⚠️ Keine Heizkreise konfiguriert")
+            return False
+        
+        logger.info(f"📋 Teste {len(circuits)} Heizungskreise...")
+        
+        working_circuits = 0
+        for circuit_name, circuit_config in circuits.items():
+            logger.info(f"\n🔍 Teste Heizkreis: {circuit_name}")
+            
+            # Vorlauf-Sensor testen
+            vorlauf_id = circuit_config.get('vorlauf_sensor')
+            ruecklauf_id = circuit_config.get('ruecklauf_sensor')
+            
+            vorlauf_temp = None
+            ruecklauf_temp = None
+            
+            if vorlauf_id:
+                try:
+                    with open(f"/sys/bus/w1/devices/{vorlauf_id}/w1_slave", 'r') as f:
+                        data = f.read()
+                        if "YES" in data and "t=" in data:
+                            vorlauf_temp = int(data.split("t=")[1]) / 1000.0
+                            logger.info(f"  🔥 Vorlauf: {vorlauf_temp:.1f}°C")
+                except Exception as e:
+                    logger.error(f"  ❌ Vorlauf-Sensor: {e}")
+            
+            if ruecklauf_id:
+                try:
+                    with open(f"/sys/bus/w1/devices/{ruecklauf_id}/w1_slave", 'r') as f:
+                        data = f.read()
+                        if "YES" in data and "t=" in data:
+                            ruecklauf_temp = int(data.split("t=")[1]) / 1000.0
+                            logger.info(f"  🔄 Rücklauf: {ruecklauf_temp:.1f}°C")
+                except Exception as e:
+                    logger.error(f"  ❌ Rücklauf-Sensor: {e}")
+            
+            # Temperaturdifferenz berechnen
+            if vorlauf_temp and ruecklauf_temp:
+                diff = vorlauf_temp - ruecklauf_temp
+                logger.info(f"  📊 Temperaturdifferenz: {diff:.1f}°C")
+                
+                if diff > 0:
+                    logger.info(f"  ✅ Heizkreis {circuit_name} funktional")
+                    working_circuits += 1
+                else:
+                    logger.warning(f"  ⚠️ Heizkreis {circuit_name}: Keine Wärmeabgabe")
+            else:
+                logger.error(f"  ❌ Heizkreis {circuit_name}: Sensordaten unvollständig")
+        
+        logger.info(f"\n📈 Ergebnis: {working_circuits}/{len(circuits)} Heizkreise funktional")
+        return working_circuits > 0
+        
+    except Exception as e:
+        logger.error(f"❌ Heizkreis-Test fehlgeschlagen: {e}")
+        return False
+
+def test_influxdb_connection():
+    """Testet die InfluxDB-Verbindung"""
+    logger.info("📊 Teste InfluxDB-Verbindung...")
+    
+    try:
+        import os
+        import requests
+        
+        # InfluxDB-Parameter aus Umgebungsvariablen
+        influxdb_url = os.getenv('INFLUXDB_URL', 'http://localhost:8086')
+        influxdb_token = os.getenv('INFLUXDB_TOKEN', 'heizung-monitoring-token-2024')
+        influxdb_org = os.getenv('INFLUXDB_ORG', 'heizung-monitoring')
+        influxdb_bucket = os.getenv('INFLUXDB_BUCKET', 'heizung-daten')
+        
+        # Health-Check
+        response = requests.get(f"{influxdb_url}/health", timeout=10)
+        if response.status_code == 200:
+            logger.info("✅ InfluxDB Server erreichbar")
+        else:
+            logger.error(f"❌ InfluxDB Health-Check fehlgeschlagen: {response.status_code}")
+            return False
+        
+        # Ping-Test mit Token
+        headers = {'Authorization': f'Token {influxdb_token}'}
+        response = requests.get(f"{influxdb_url}/ping", headers=headers, timeout=10)
+        if response.status_code == 204:
+            logger.info("✅ InfluxDB Authentifizierung erfolgreich")
+        else:
+            logger.error(f"❌ InfluxDB Authentifizierung fehlgeschlagen: {response.status_code}")
+            return False
+        
+        # Bucket-Test
+        response = requests.get(f"{influxdb_url}/api/v2/buckets", headers=headers, timeout=10)
+        if response.status_code == 200:
+            buckets = response.json().get('buckets', [])
+            bucket_names = [b['name'] for b in buckets]
+            logger.info(f"✅ Verfügbare Buckets: {bucket_names}")
+            
+            if influxdb_bucket in bucket_names:
+                logger.info(f"✅ Ziel-Bucket '{influxdb_bucket}' gefunden")
+            else:
+                logger.warning(f"⚠️ Ziel-Bucket '{influxdb_bucket}' nicht gefunden")
+        else:
+            logger.error(f"❌ Bucket-Abfrage fehlgeschlagen: {response.status_code}")
+            return False
+        
+        logger.info("✅ InfluxDB-Verbindung erfolgreich")
+        return True
+        
     except Exception as e:
         logger.error(f"❌ InfluxDB-Test fehlgeschlagen: {e}")
         return False
 
-def run_full_system_test():
-    """Führt einen kompletten Systemtest durch"""
-    logger.info("🧪 Starte vollständigen Systemtest...")
-    logger.info("=" * 50)
-    
-    # Alle Tests durchführen
-    tests = [
-        ("1-Wire Interface", test_1wire_interface),
-        ("Heizungskreise", test_heating_circuits), 
-        ("DHT22 Raumsensor", test_room_sensor),
-        ("InfluxDB-Verbindung", test_database_connection)
-    ]
-    
-    results = {}
-    
-    for test_name, test_func in tests:
-        logger.info(f"\n{'='*20} {test_name} {'='*20}")
-        try:
-            results[test_name] = test_func()
-        except Exception as e:
-            logger.error(f"❌ Test '{test_name}' mit Fehler beendet: {e}")
-            results[test_name] = False
-    
-    # Zusammenfassung
-    logger.info("\n" + "="*50)
-    logger.info("📋 TEST-ZUSAMMENFASSUNG")
-    logger.info("="*50)
-    
-    passed_tests = 0
-    total_tests = len(tests)
-    
-    for test_name, passed in results.items():
-        status = "✅ BESTANDEN" if passed else "❌ FEHLGESCHLAGEN"
-        logger.info(f"{test_name:<25}: {status}")
-        if passed:
-            passed_tests += 1
-    
-    logger.info(f"\nGesamtergebnis: {passed_tests}/{total_tests} Tests bestanden")
-    
-    if passed_tests == total_tests:
-        logger.info("🎉 Alle Tests erfolgreich! System ist einsatzbereit.")
-        return True
-    else:
-        logger.warning(f"⚠️ {total_tests - passed_tests} Test(s) fehlgeschlagen!")
-        
-        # Spezifische Empfehlungen
-        if not results.get("1-Wire Interface", True):
-            logger.info("💡 1-Wire Interface Lösung: sudo reboot (nach install_rpi5.sh)")
-        
-        if not results.get("DHT22 Raumsensor", True):
-            logger.info("💡 DHT22 Lösung: python test_dht22.py für detaillierte Diagnose")
-        
-        if not results.get("InfluxDB-Verbindung", True):
-            logger.info("💡 InfluxDB Lösung: docker-compose up -d")
-        
-        return False
-
-def run_dht22_only_test():
-    """Führt nur den DHT22-Test durch"""
-    logger.info("🌡️ DHT22-spezifischer Test")
-    logger.info("=" * 30)
-    
-    # Importiere spezifischen DHT22-Test
-    try:
-        import subprocess
-        import os
-        
-        script_dir = os.path.dirname(__file__)
-        dht22_script = os.path.join(script_dir, "test_dht22.py")
-        
-        if os.path.exists(dht22_script):
-            logger.info("🚀 Führe dedizierten DHT22-Test aus...")
-            result = subprocess.run([sys.executable, dht22_script], 
-                                  capture_output=True, text=True, cwd=script_dir)
-            
-            if result.stdout:
-                print(result.stdout)
-            if result.stderr:
-                print(result.stderr)
-                
-            return result.returncode == 0
-        else:
-            logger.warning("⚠️ Spezifisches DHT22-Test-Script nicht gefunden")
-            return test_room_sensor()
-            
-    except Exception as e:
-        logger.error(f"❌ DHT22-Test Fehler: {e}")
-        return test_room_sensor()
-
 def run_all_tests():
     """Führt alle Sensor-Tests durch"""
     tests = [
-        ("1-Wire Sensoren", test_1wire_sensors),
+        ("1-Wire Sensoren", test_1wire_interface),
         ("DHT22 Raumsensor", test_dht22_detailed),
         ("Heizungskreise", test_heating_circuits),
         ("InfluxDB Verbindung", test_influxdb_connection)
@@ -362,6 +365,7 @@ def run_all_tests():
     
     for test_name, test_func in tests:
         try:
+            logger.info("\n" + "=" * 50)
             results[test_name] = test_func()
             time.sleep(2)  # Pause zwischen Tests
         except Exception as e:
@@ -391,13 +395,55 @@ def run_all_tests():
 
 def main():
     """Hauptfunktion"""
+    parser = argparse.ArgumentParser(description='Test-Skript für Heizungsüberwachung Sensoren')
+    parser.add_argument('--dht22', action='store_true', 
+                       help='Führe nur DHT22-Test durch')
+    parser.add_argument('--1wire', action='store_true', 
+                       help='Führe nur 1-Wire-Test durch')
+    parser.add_argument('--heating', action='store_true', 
+                       help='Führe nur Heizungskreis-Test durch')
+    parser.add_argument('--influxdb', action='store_true', 
+                       help='Führe nur InfluxDB-Test durch')
+    parser.add_argument('--all', action='store_true', 
+                       help='Führe alle Tests durch (Standard)')
+    
+    args = parser.parse_args()
+    
     try:
-        # Umgebungsvariablen laden
-        from dotenv import load_dotenv
-        load_dotenv()
+        # .env-Datei laden falls vorhanden
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except ImportError:
+            pass  # dotenv ist optional
         
-        # Vollständigen Systemtest ausführen
-        success = run_full_system_test()
+        success = True
+        
+        # Spezifische Tests ausführen
+        if args.dht22:
+            logger.info("🌡️ Führe nur DHT22-Test durch...")
+            success = run_dht22_only_test()
+        elif getattr(args, '1wire', False):  # Workaround für 1wire Argument
+            logger.info("🔍 Führe nur 1-Wire-Test durch...")
+            success = test_1wire_interface()
+        elif args.heating:
+            logger.info("🏠 Führe nur Heizungskreis-Test durch...")
+            success = test_heating_circuits()
+        elif args.influxdb:
+            logger.info("📊 Führe nur InfluxDB-Test durch...")
+            success = test_influxdb_connection()
+        else:
+            # Vollständigen Systemtest ausführen (Standard)
+            logger.info("🚀 Starte vollständigen Systemtest...")
+            success = run_all_tests()
+        
+        # Hilfreiche Ausgabe am Ende
+        if success:
+            logger.info("\n🎉 Test erfolgreich abgeschlossen!")
+        else:
+            logger.error("\n❌ Test fehlgeschlagen!")
+            logger.info("💡 Für detaillierte DHT22-Diagnose: python test_dht22.py")
+            logger.info("💡 Für vollständige System-Diagnose: ./diagnose_influxdb.sh")
         
         # Exit-Code setzen
         sys.exit(0 if success else 1)
