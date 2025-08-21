@@ -42,6 +42,18 @@ Sensor 7-8: Wärmepumpe Vor-/Rücklauf
 └── Data: GPIO 18 (Pin 12)
 ```
 
+**DHT22 Sensor testen:**
+```bash
+# Vollständiger DHT22-Test mit Diagnose
+python test_dht22.py
+
+# DHT22-Test über allgemeines Test-Script
+python test_sensors.py --dht22
+
+# DHT22 im Systemtest
+python test_sensors.py
+```
+
 ### Sensor-Zuordnung (Heizungskreise)
 - **DS18B20_1**: Vorlauf Heizkreis Obergeschoss
 - **DS18B20_2**: Rücklauf Heizkreis Obergeschoss
@@ -313,7 +325,18 @@ echo "over_voltage=2" | sudo tee -a /boot/firmware/config.txt
 ```bash
 cd /home/pi/heizung-monitor
 source venv/bin/activate
+
+# Alle Sensoren testen
 python test_sensors.py
+
+# Spezifische Tests
+python test_sensors.py --dht22    # Nur DHT22 Raumsensor
+python test_sensors.py --1wire    # Nur DS18B20 Sensoren
+python test_sensors.py --heating  # Nur Heizungskreise
+python test_sensors.py --influxdb # Nur InfluxDB
+
+# Detaillierte DHT22-Diagnose
+python test_dht22.py
 ```
 
 #### Service starten
@@ -410,6 +433,7 @@ heizung-monitor/
 │   └── heizung-monitor.service     # Systemd Service
 ├── main.py                         # Hauptprogramm
 ├── test_sensors.py                 # Sensor-Tests
+├── test_dht22.py                   # DHT22 Sensor-Diagnose
 ├── requirements.txt                # Python-Dependencies
 ├── .env.example                    # Umgebungsvariablen
 └── README.md
