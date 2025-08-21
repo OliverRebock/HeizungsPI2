@@ -44,7 +44,10 @@ Sensor 7-8: Wärmepumpe Vor-/Rücklauf
 
 **DHT22 Sensor testen:**
 ```bash
-# Vollständiger DHT22-Test mit Diagnose
+# Vollständiger DHT22-Test mit Diagnose (empfohlen)
+python test_dht22_robust.py
+
+# Original DHT22-Test 
 python test_dht22.py
 
 # DHT22-Test über allgemeines Test-Script
@@ -52,6 +55,27 @@ python test_sensors.py --dht22
 
 # DHT22 im Systemtest
 python test_sensors.py
+```
+
+**DHT22 Troubleshooting:**
+```bash
+# Häufiger Fehler: "No module named 'board'"
+# Lösung 1 - Virtual Environment verwenden:
+source venv/bin/activate
+pip install adafruit-circuitpython-dht adafruit-blinka
+
+# Lösung 2 - System-weite Installation:
+sudo pip3 install adafruit-circuitpython-dht adafruit-blinka
+
+# Lösung 3 - APT Installation:
+sudo apt install python3-adafruit-circuitpython-dht
+
+# GPIO Berechtigungen:
+sudo usermod -a -G gpio pi
+# Neuanmeldung erforderlich
+
+# Alternative: Legacy DHT Library
+pip install Adafruit-DHT
 ```
 
 ### Sensor-Zuordnung (Heizungskreise)

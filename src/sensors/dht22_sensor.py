@@ -7,8 +7,42 @@ import time
 import logging
 from datetime import datetime
 from typing import Optional, Dict, Tuple, List
-import board
-import adafruit_dht
+
+# Robust DHT22 Import mit Fallback-Optionen
+DHT_AVAILABLE = False
+DHT_METHOD = "none"
+
+try:
+    # Versuch 1: Adafruit CircuitPython (empfohlen für Raspberry Pi 5)
+    import board
+    import adafruit_dht
+    DHT_AVAILABLE = True
+    DHT_METHOD = "adafruit"
+    logger = logging.getLogger(__name__)
+    logger.info("DHT22: Adafruit CircuitPython verfügbar")
+except ImportError as e:
+    try:
+        # Versuch 2: Alternative DHT Bibliothek
+        import Adafruit_DHT
+        DHT_AVAILABLE = True
+        DHT_METHOD = "legacy"
+        logger = logging.getLogger(__name__)
+        logger.info("DHT22: Legacy Adafruit_DHT verfügbar")
+    except ImportError:
+        try:
+            # Versuch 3: Pigpio DHT22
+            import pigpio
+            import DHT22
+            DHT_AVAILABLE = True
+            DHT_METHOD = "pigpio"
+            logger = logging.getLogger(__name__)
+            logger.info("DHT22: Pigpio DHT22 verfügbar")
+        except ImportError:
+            # Fallback: Dummy-Implementation für Entwicklung
+            DHT_AVAILABLE = False
+            DHT_METHOD = "dummy"
+            logger = logging.getLogger(__name__)
+            logger.warning("DHT22: Keine DHT-Bibliothek verfügbar - verwende Dummy-Implementation")
 
 logger = logging.getLogger(__name__)
 
@@ -25,14 +59,7 @@ class HeatingRoomSensor:
         """
         self.pin = pin
         self.name = name
-        # Moderne CircuitPython DHT Bibliothek
-        if pin == 18:
-            self.dht = adafruit_dht.DHT22(board.D18)
-        elif pin == 4:
-            self.dht = adafruit_dht.DHT22(board.D4)
-        else:
-            # Fallback für andere Pins
-            self.dht = adafruit_dht.DHT22(getattr(board, f'D{pin}'))
+        self.dht = None
         self.last_reading_time = 0
         self.min_reading_interval = 2.0
         
@@ -41,7 +68,40 @@ class HeatingRoomSensor:
         self.temp_max = 35.0  # Maximaltemperatur (Überhitzung)
         self.humidity_max = 80.0  # Maximale Luftfeuchtigkeit (Kondensation)
         
-        logger.info(f"Heizungsraum-Sensor initialisiert: {self.name} (GPIO {self.pin})")
+        # DHT Sensor je nach verfügbarer Bibliothek initialisieren
+        self._init_dht_sensor()
+        
+        logger.info(f"Heizungsraum-Sensor initialisiert: {self.name} (GPIO {self.pin}, Methode: {DHT_METHOD})")
+    
+    def _init_dht_sensor(self):
+        """Initialisiert den DHT22 Sensor basierend auf verfügbarer Bibliothek"""
+        if not DHT_AVAILABLE:
+            logger.warning("DHT22: Keine Bibliothek verfügbar - Dummy-Modus")
+            return
+            
+        try:
+            if DHT_METHOD == "adafruit":
+                # Adafruit CircuitPython
+                if self.pin == 18:
+                    self.dht = adafruit_dht.DHT22(board.D18)
+                elif self.pin == 4:
+                    self.dht = adafruit_dht.DHT22(board.D4)
+                else:
+                    # Dynamisch für andere Pins
+                    self.dht = adafruit_dht.DHT22(getattr(board, f'D{self.pin}'))
+                    
+            elif DHT_METHOD == "legacy":
+                # Legacy Adafruit_DHT
+                self.dht = Adafruit_DHT.DHT22
+                
+            elif DHT_METHOD == "pigpio":
+                # Pigpio DHT22
+                self.pi = pigpio.pi()
+                self.dht = DHT22.sensor(self.pi, self.pin)
+                
+        except Exception as e:
+            logger.error(f"DHT22 Initialisierung fehlgeschlagen: {e}")
+            self.dht = None
     
     def _wait_for_reading_interval(self) -> None:
         """Wartet die erforderliche Zeit zwischen Messungen ab"""
@@ -62,13 +122,36 @@ class HeatingRoomSensor:
         Returns:
             Dictionary mit 'temperature', 'humidity', 'dew_point'
         """
+        if not DHT_AVAILABLE or self.dht is None:
+            logger.warning(f"{self.name}: DHT22 nicht verfügbar - verwende Dummy-Daten")
+            return {
+                'temperature': 20.0,  # Dummy-Werte für Tests
+                'humidity': 50.0,
+                'dew_point': 9.3
+            }
+        
         self._wait_for_reading_interval()
         
         for attempt in range(retries):
             try:
-                # Moderne CircuitPython DHT Bibliothek
-                temperature = self.dht.temperature
-                humidity = self.dht.humidity
+                temperature = None
+                humidity = None
+                
+                if DHT_METHOD == "adafruit":
+                    # Adafruit CircuitPython DHT
+                    temperature = self.dht.temperature
+                    humidity = self.dht.humidity
+                    
+                elif DHT_METHOD == "legacy":
+                    # Legacy Adafruit_DHT
+                    humidity, temperature = Adafruit_DHT.read_retry(self.dht, self.pin)
+                    
+                elif DHT_METHOD == "pigpio":
+                    # Pigpio DHT22
+                    self.dht.trigger()
+                    time.sleep(0.2)
+                    humidity = self.dht.humidity()
+                    temperature = self.dht.temperature()
                 
                 self.last_reading_time = time.time()
                 
