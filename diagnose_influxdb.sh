@@ -83,23 +83,54 @@ if [ -d "/sys/bus/w1/devices" ]; then
         for sensor_dir in /sys/bus/w1/devices/28-*; do
             if [ -d "$sensor_dir" ]; then
                 SENSOR_ID=$(basename "$sensor_dir")
-                # Nur die w1_slave Datei lesen für Temperatur
+                echo "   🔍 Prüfe Sensor: $SENSOR_ID"
+                
+                # w1_slave Datei prüfen
                 if [ -f "$sensor_dir/w1_slave" ]; then
-                    TEMP_LINE=$(cat "$sensor_dir/w1_slave" 2>/dev/null | grep "t=" | tail -1)
-                    if [ -n "$TEMP_LINE" ]; then
-                        TEMP=$(echo "$TEMP_LINE" | cut -d"=" -f2)
-                        if [ -n "$TEMP" ] && [ "$TEMP" != "85000" ] && [ "$TEMP" -gt -55000 ] && [ "$TEMP" -lt 125000 ]; then
-                            TEMP_C=$(echo "scale=1; $TEMP/1000" | bc -l 2>/dev/null || echo "N/A")
-                            echo "   📡 $SENSOR_ID: ${TEMP_C}°C"
+                    echo "     - w1_slave Datei gefunden"
+                    
+                    # Sensor-Daten vollständig anzeigen für Debugging
+                    SLAVE_DATA=$(cat "$sensor_dir/w1_slave" 2>/dev/null)
+                    if [ -n "$SLAVE_DATA" ]; then
+                        echo "     - Rohdaten: $SLAVE_DATA"
+                        
+                        # CRC-Check (erste Zeile sollte 'YES' enthalten)
+                        CRC_LINE=$(echo "$SLAVE_DATA" | head -1)
+                        if echo "$CRC_LINE" | grep -q "YES"; then
+                            echo "     - CRC Check: ✅ OK"
+                            
+                            # Temperatur extrahieren
+                            TEMP_LINE=$(echo "$SLAVE_DATA" | grep "t=" | tail -1)
+                            if [ -n "$TEMP_LINE" ]; then
+                                TEMP=$(echo "$TEMP_LINE" | sed 's/.*t=//')
+                                echo "     - Temperatur Raw: $TEMP"
+                                
+                                if [ -n "$TEMP" ] && [ "$TEMP" != "85000" ] && [ "$TEMP" -gt -55000 ] && [ "$TEMP" -lt 125000 ]; then
+                                    # bc installiert prüfen
+                                    if command -v bc &> /dev/null; then
+                                        TEMP_C=$(echo "scale=1; $TEMP/1000" | bc -l)
+                                    else
+                                        # Fallback ohne bc
+                                        TEMP_C=$(awk "BEGIN {printf \"%.1f\", $TEMP/1000}")
+                                    fi
+                                    echo "   📡 $SENSOR_ID: ${GREEN}${TEMP_C}°C${NC}"
+                                else
+                                    warn "   ⚠️ $SENSOR_ID: Ungültige Temperatur ($TEMP)"
+                                fi
+                            else
+                                warn "   ❌ $SENSOR_ID: Keine Temperatur-Zeile gefunden"
+                            fi
                         else
-                            warn "   ⚠️ $SENSOR_ID: Ungültige Temperatur ($TEMP)"
+                            error "   ❌ $SENSOR_ID: CRC Check fehlgeschlagen - $CRC_LINE"
+                            echo "     Sensor möglicherweise defekt oder Verkabelung prüfen"
                         fi
                     else
-                        warn "   ❌ $SENSOR_ID: Keine Temperatur-Daten"
+                        error "   ❌ $SENSOR_ID: w1_slave Datei ist leer"
                     fi
                 else
                     warn "   ❌ $SENSOR_ID: w1_slave Datei fehlt"
                 fi
+                echo ""
             fi
         done
     else
