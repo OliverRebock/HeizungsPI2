@@ -54,6 +54,7 @@ show_help() {
     echo "  logs      - Live-Logs aller Services anzeigen"
     echo "  backup    - Manuelles Backup ausführen"
     echo "  test      - Sensoren und System testen"
+    echo "  diagnose  - Vollständige System-Diagnose"
     echo "  help      - Diese Hilfe anzeigen"
     echo ""
 }
@@ -184,6 +185,20 @@ test_system() {
     log "Systemtest abgeschlossen"
 }
 
+# Vollständige Diagnose
+run_diagnose() {
+    log "Führe vollständige System-Diagnose aus..."
+    cd "$(dirname "$0")"
+    
+    if [ -f "diagnose_influxdb.sh" ]; then
+        chmod +x diagnose_influxdb.sh
+        ./diagnose_influxdb.sh
+    else
+        error "Diagnose-Script nicht gefunden!"
+        exit 1
+    fi
+}
+
 # Hauptlogik
 case "${1:-help}" in
     start)
@@ -212,6 +227,9 @@ case "${1:-help}" in
         ;;
     test)
         test_system
+        ;;
+    diagnose)
+        run_diagnose
         ;;
     help|--help|-h)
         show_help

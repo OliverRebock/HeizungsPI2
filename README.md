@@ -580,6 +580,44 @@ ls /sys/bus/w1/devices/
 sudo reboot
 ```
 
+**Keine Daten in InfluxDB:**
+```bash
+# Vollständige Diagnose ausführen
+cd /home/pi/heizung-monitor
+chmod +x diagnose_influxdb.sh
+./diagnose_influxdb.sh
+
+# Services prüfen und starten
+sudo systemctl status heizung-monitor
+sudo systemctl start heizung-monitor
+
+# Container prüfen
+docker-compose ps
+docker-compose up -d
+
+# Logs überwachen
+sudo journalctl -u heizung-monitor -f
+
+# Sensoren manuell testen
+python test_sensors.py
+```
+
+**InfluxDB Verbindungsprobleme:**
+```bash
+# Container-Status prüfen
+docker-compose ps
+docker-compose logs influxdb
+
+# InfluxDB Gesundheitscheck
+curl http://localhost:8086/health
+
+# Container neu starten
+docker-compose restart influxdb
+
+# Konfiguration prüfen
+cat .env
+```
+
 **Permission Denied Fehler:**
 ```bash
 # Benutzer zur docker Gruppe hinzufügen
