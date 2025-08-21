@@ -6,7 +6,7 @@ Erweitert um heizungsspezifische Berechnungen
 import time
 import logging
 from datetime import datetime
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, List
 import board
 import adafruit_dht
 

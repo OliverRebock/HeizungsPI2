@@ -14,7 +14,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 try:
     import board
     import adafruit_dht
-    from sensors.dht22_sensor import DHT22Sensor
+    from sensors.dht22_sensor import HeatingRoomSensor
 except ImportError as e:
     print(f"❌ Import-Fehler: {e}")
     print("Installiere fehlende Pakete mit: pip install -r requirements.txt")
@@ -61,19 +61,19 @@ def test_raw_dht22():
         return False
 
 def test_sensor_class():
-    """Test der DHT22Sensor-Klasse"""
+    """Test der HeatingRoomSensor-Klasse"""
     print("\n🔧 DHT22 Sensor-Klassen-Test")
     print("============================")
     
     try:
-        sensor = DHT22Sensor(gpio_pin=18)
+        sensor = HeatingRoomSensor(pin=18)
         
         success_count = 0
         total_attempts = 5
         
         for i in range(total_attempts):
             print(f"Versuch {i+1}...")
-            data = sensor.read_data()
+            data = sensor.read_sensor_data()
             
             if data['temperature'] is not None and data['humidity'] is not None:
                 print(f"✅ Temperatur: {data['temperature']:.1f}°C")
@@ -89,7 +89,7 @@ def test_sensor_class():
         return success_count > 0
         
     except Exception as e:
-        print(f"❌ DHT22Sensor-Klasse Fehler: {e}")
+        print(f"❌ HeatingRoomSensor-Klasse Fehler: {e}")
         return False
 
 def test_gpio_status():
