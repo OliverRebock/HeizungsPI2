@@ -75,22 +75,37 @@ fi
 echo ""
 info "3. 1-Wire Sensoren:"
 if [ -d "/sys/bus/w1/devices" ]; then
-    SENSORS=$(ls /sys/bus/w1/devices/28-* 2>/dev/null | wc -l)
+    # Nur echte DS18B20 Sensoren zählen (beginnen mit 28-)
+    SENSORS=$(ls -d /sys/bus/w1/devices/28-* 2>/dev/null | wc -l)
     if [ "$SENSORS" -gt 0 ]; then
         echo -e "${GREEN}✅ $SENSORS DS18B20 Sensoren erkannt${NC}"
-        ls /sys/bus/w1/devices/28-* | while read sensor; do
-            SENSOR_ID=$(basename "$sensor")
-            TEMP=$(cat "$sensor/w1_slave" 2>/dev/null | grep "t=" | cut -d"=" -f2)
-            if [ -n "$TEMP" ] && [ "$TEMP" != "85000" ]; then
-                TEMP_C=$(echo "scale=1; $TEMP/1000" | bc -l 2>/dev/null || echo "N/A")
-                echo "   $SENSOR_ID: ${TEMP_C}°C"
-            else
-                warn "   $SENSOR_ID: Keine gültigen Daten"
+        # Nur die echten Sensor-Verzeichnisse durchgehen
+        for sensor_dir in /sys/bus/w1/devices/28-*; do
+            if [ -d "$sensor_dir" ]; then
+                SENSOR_ID=$(basename "$sensor_dir")
+                # Nur die w1_slave Datei lesen für Temperatur
+                if [ -f "$sensor_dir/w1_slave" ]; then
+                    TEMP_LINE=$(cat "$sensor_dir/w1_slave" 2>/dev/null | grep "t=" | tail -1)
+                    if [ -n "$TEMP_LINE" ]; then
+                        TEMP=$(echo "$TEMP_LINE" | cut -d"=" -f2)
+                        if [ -n "$TEMP" ] && [ "$TEMP" != "85000" ] && [ "$TEMP" -gt -55000 ] && [ "$TEMP" -lt 125000 ]; then
+                            TEMP_C=$(echo "scale=1; $TEMP/1000" | bc -l 2>/dev/null || echo "N/A")
+                            echo "   📡 $SENSOR_ID: ${TEMP_C}°C"
+                        else
+                            warn "   ⚠️ $SENSOR_ID: Ungültige Temperatur ($TEMP)"
+                        fi
+                    else
+                        warn "   ❌ $SENSOR_ID: Keine Temperatur-Daten"
+                    fi
+                else
+                    warn "   ❌ $SENSOR_ID: w1_slave Datei fehlt"
+                fi
             fi
         done
     else
         error "❌ Keine DS18B20 Sensoren gefunden!"
         echo "   Prüfe 1-Wire Konfiguration und Verkabelung"
+        echo "   Module neu laden: sudo modprobe -r w1-therm w1-gpio && sudo modprobe w1-gpio w1-therm"
     fi
 else
     error "❌ 1-Wire Interface nicht aktiviert!"
