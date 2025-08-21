@@ -10,5 +10,5 @@ flask==3.0.0
 requests==2.31.0
 psutil==5.9.6
 numpy==1.25.2
-# Alternative DHT libraries als Fallback
-Adafruit-DHT==1.4.0
+# DHT22 Alternative für Raspberry Pi 5 (falls CircuitPython nicht funktioniert)
+# Adafruit-DHT wird entfernt da es Probleme mit Pi 5 Hardware-Erkennung hat

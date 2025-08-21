@@ -1,0 +1,26 @@
+# Requirements für Raspberry Pi 5 Heizungsüberwachung
+# Optimiert für Pi 5 Hardware ohne problematische Legacy-Bibliotheken
+
+# Core Sensor Libraries
+w1thermsensor==2.3.0
+adafruit-circuitpython-dht==4.0.9
+adafruit-blinka==8.22.2
+
+# Database & Web
+influxdb-client==1.43.0
+flask==3.0.0
+requests==2.31.0
+
+# GPIO & Hardware
+RPi.GPIO==0.7.1
+
+# System & Utilities
+schedule==1.2.2
+python-dotenv==1.0.1
+pyyaml==6.0.1
+psutil==5.9.6
+numpy==1.25.2
+
+# Optional: DHT22 Fallback für spezielle Fälle
+# Falls adafruit-circuitpython-dht nicht funktioniert, kann manuell installiert werden:
+# pip install --force-reinstall --no-deps Adafruit-DHT --force-pi

@@ -74,8 +74,17 @@ sudo apt install python3-adafruit-circuitpython-dht
 sudo usermod -a -G gpio pi
 # Neuanmeldung erforderlich
 
-# Alternative: Legacy DHT Library
-pip install Adafruit-DHT
+# Häufiger Fehler: "Could not detect if running on the Raspberry Pi"
+# bei Adafruit-DHT Installation (Legacy-Bibliothek)
+# Quick-Fix:
+chmod +x fix_adafruit_dht.sh
+./fix_adafruit_dht.sh
+
+# Alternative: Legacy DHT Library mit Force-Flag
+pip install Adafruit-DHT --install-option="--force-pi"
+
+# Hinweis: System funktioniert auch ohne Legacy Adafruit-DHT
+# Moderne CircuitPython-Bibliotheken sind ausreichend
 ```
 
 ### Sensor-Zuordnung (Heizungskreise)

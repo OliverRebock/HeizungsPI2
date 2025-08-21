@@ -176,15 +176,48 @@ fi
 
 source venv/bin/activate
 
-# 8. Python-Abhängigkeiten installieren (requirements.txt sollte existieren)
-if [ -f "requirements.txt" ]; then
-    log "Schritt 8: Python-Abhängigkeiten aus requirements.txt installieren..."
-    pip install --upgrade pip
-    pip install -r requirements.txt
-    log "Python-Pakete aus requirements.txt installiert"
+# 8. Python-Abhängigkeiten installieren
+log "Schritt 8: Python-Abhängigkeiten installieren..."
+
+# Pip aktualisieren
+pip install --upgrade pip setuptools wheel
+
+# Raspberry Pi 5 optimierte Installation
+if [ -f "requirements-pi5.txt" ]; then
+    log "Verwende Raspberry Pi 5 optimierte requirements..."
+    pip install -r requirements-pi5.txt
+    log "Pi 5 optimierte Pakete installiert"
+elif [ -f "requirements.txt" ]; then
+    log "Installiere Core-Pakete (ohne problematische Legacy-Bibliotheken)..."
+    
+    # Core Pakete ohne Adafruit-DHT installieren
+    pip install \
+        w1thermsensor==2.3.0 \
+        adafruit-circuitpython-dht==4.0.9 \
+        adafruit-blinka==8.22.2 \
+        influxdb-client==1.43.0 \
+        RPi.GPIO==0.7.1 \
+        schedule==1.2.2 \
+        python-dotenv==1.0.1 \
+        pyyaml==6.0.1 \
+        flask==3.0.0 \
+        requests==2.31.0 \
+        psutil==5.9.6 \
+        numpy==1.25.2
+    
+    log "Core-Pakete erfolgreich installiert"
+    
+    # Optional: Versuche Legacy DHT-Bibliothek mit Force-Flag
+    log "Versuche optionale Legacy DHT-Unterstützung..."
+    if pip install --force-reinstall --no-deps Adafruit-DHT --install-option="--force-pi" 2>/dev/null; then
+        log "Legacy DHT-Unterstützung hinzugefügt"
+    else
+        warn "Legacy DHT-Bibliothek konnte nicht installiert werden (nicht kritisch)"
+        warn "CircuitPython DHT-Support ist bereits verfügbar"
+    fi
+    
 else
-    log "Schritt 8: Grundlegende Python-Pakete installieren (Fallback)..."
-    pip install --upgrade pip
+    log "Installiere Mindest-Pakete (Fallback)..."
     pip install \
         w1thermsensor==2.3.0 \
         adafruit-circuitpython-dht==4.0.9 \
@@ -196,8 +229,10 @@ else
         pyyaml==6.0.1 \
         flask==3.0.0 \
         requests==2.31.0
-    log "Grundlegende Python-Pakete installiert"
+    log "Mindest-Pakete installiert"
 fi
+
+log "Python-Abhängigkeiten abgeschlossen"
 
 # 8a. Web Dashboard Service konfigurieren
 log "Schritt 8a: Web Dashboard Service einrichten..."
