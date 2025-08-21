@@ -324,6 +324,8 @@ echo "over_voltage=2" | sudo tee -a /boot/firmware/config.txt
 #### Sensoren testen
 ```bash
 cd /home/pi/heizung-monitor
+
+# WICHTIG: Virtual Environment aktivieren
 source venv/bin/activate
 
 # Alle Sensoren testen
@@ -337,6 +339,9 @@ python test_sensors.py --influxdb # Nur InfluxDB
 
 # Detaillierte DHT22-Diagnose
 python test_dht22.py
+
+# Virtual Environment deaktivieren (optional)
+deactivate
 ```
 
 #### Service starten
@@ -656,6 +661,37 @@ sudo usermod -aG docker $USER
 
 # Logs überwachen
 ./service_manager.sh logs
+```
+
+**Python Virtual Environment Fehler:**
+```bash
+# Fehler: "externally-managed-environment" beim pip install
+# Ursache: Moderne Python-Installationen verhindern System-weite Package-Installation
+
+# Lösung - Virtual Environment verwenden:
+cd /home/pi/heizung-monitor
+
+# Virtual Environment erstellen (falls nicht vorhanden)
+python3 -m venv venv
+
+# Virtual Environment aktivieren
+source venv/bin/activate
+
+# Dependencies installieren
+pip install -r requirements.txt
+
+# Für zukünftige Sessions immer zuerst aktivieren:
+source venv/bin/activate
+python test_sensors.py
+
+# Virtual Environment deaktivieren:
+deactivate
+```
+
+**Alternative: Komplette Neuinstallation (empfohlen):**
+```bash
+# Das Installationsskript erstellt automatisch das Virtual Environment
+curl -fsSL https://raw.githubusercontent.com/OliverRebock/HeizungsPI2/main/quick_install.sh | sudo bash
 ```
 
 ## �📄 Lizenz
